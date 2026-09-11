@@ -1,0 +1,53 @@
+schemaName: gentle-ai.sdd-preproposal/v1
+revision: 7
+change: airport-transfer-mvp
+artifact_store_mode: hybrid
+
+exploration:
+  outcome: done
+  file: openspec/changes/airport-transfer-mvp/exploration.md
+  reference: engram observation #2249
+  topic: sdd/airport-transfer-mvp/explore
+
+research:
+  selected: true
+  admission: granted
+  outcome: done
+  research_revision: 4
+  file: openspec/changes/airport-transfer-mvp/research.md
+  reference: engram observation #2251
+  topic: sdd/airport-transfer-mvp/research
+  validated_claims_available: true
+  source_ids:
+    - MED-PRICE-1
+    - MED-PRICE-2
+    - H3-SIZE-1
+    - H3-REGION-2
+    - MED-ORDER-1
+    - MED-WORKFLOW-2
+
+product_decisions:
+  status: confirmed
+  authoritative: true
+  confirmed:
+    - Use Medusa Pricing Rules for the MVP fare mechanism, with validation for collisions and performance.
+    - Include H3 from the start as the primary zone representation.
+    - Use configurable H3 resolution, initially 9, validated with real PUJ-area addresses and boundary cases.
+    - Handle price-changing reservation changes through an assisted operator flow in the MVP.
+    - Use payment links for positive differences and refunds to the original method for negative differences, subject to provider capability.
+    - Use change_request_id as the business-operation identity and provider_event_id to deduplicate provider webhooks.
+
+readiness:
+  proposal_ready: true
+  reason: Exploration and selected research are done in both stores, and all pending product decisions were explicitly confirmed by the user.
+
+confirmed_handoff:
+  state_revision: 7
+  exploration_reference: engram observation #2249
+  research_reference: engram observation #2251 revision 4
+  artifact_store_mode: hybrid
+  proposal_authorized: true
+
+recovery_state:
+  blocker: none
+  continuation: Resolve the existing proposal, specs, design, and tasks from this hybrid active change; do not launch sdd-new.

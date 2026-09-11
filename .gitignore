@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build and test output
+**/build/
+**/dist/
+coverage/
+**/coverage/
+*.tsbuildinfo
+
+# Local configuration and database artifacts
+.env
+.env.*
+!.env.template
+apps/backend/.env.template
+*.pem
+medusa-db.sql
+
+# Medusa runtime data
+apps/backend/uploads/
+apps/backend/.medusa/
+
+# Tooling and operating system files
+.turbo/
+.vscode/
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+# Local AI runtime state
+.atl/
+.codegraph/

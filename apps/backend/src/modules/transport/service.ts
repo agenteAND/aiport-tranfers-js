@@ -72,6 +72,20 @@ export type TransferFareResolution =
       reason: "no_active_fare" | "ambiguous_active_fare"
     }
 
+export type TransferQuoteSnapshot = {
+  quote_id: string
+  amount: number
+  currency_code: string
+  origin_zone_id: string
+  destination_zone_id: string
+  vehicle_class_id: string
+  variant_id: string
+  price_set_id: string
+  price_id: string
+  h3_resolution: number
+  expires_at: string
+}
+
 const TRANSFER_FARE_RULES = [
   "origin_zone_id",
   "destination_zone_id",
@@ -81,9 +95,16 @@ const TRANSFER_FARE_RULES = [
 class TransportModuleService {
   private readonly h3Resolution: number
   private readonly zones = new Map<string, ImportedTransportZone>()
+  private readonly quotes = new Map<string, TransferQuoteSnapshot>()
 
-  constructor({ h3Resolution = 9 }: TransportModuleOptions = {}) {
-    this.h3Resolution = h3Resolution
+  constructor(containerOrOptions: any = {}, options?: TransportModuleOptions) {
+    const directResolution = Object.prototype.hasOwnProperty.call(
+      containerOrOptions,
+      "h3Resolution"
+    )
+      ? containerOrOptions.h3Resolution
+      : undefined
+    this.h3Resolution = options?.h3Resolution ?? directResolution ?? 9
   }
 
   importZoneCells(input: ImportZoneCellsInput): ImportedTransportZone {
@@ -152,6 +173,22 @@ class TransportModuleService {
         vehicle_class_id: input.vehicle_class_id,
       },
     }
+  }
+
+  createQuoteSnapshot(input: Omit<TransferQuoteSnapshot, "quote_id" | "expires_at">) {
+    const quote = Object.freeze({
+      ...input,
+      quote_id: `trq_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    })
+
+    this.quotes.set(quote.quote_id, quote)
+
+    return quote
+  }
+
+  getQuoteSnapshot(quoteId: string): TransferQuoteSnapshot | undefined {
+    return this.quotes.get(quoteId)
   }
 
   private isActiveTransferFare(

@@ -38,9 +38,9 @@ Chain strategy: feature-branch-chain
 - [x] 2.3 REFACTOR: pricing access remains isolated behind `apps/backend/src/modules/transport/service.ts`; the local username is environment-specific and CI must provide its own `DB_USERNAME` or standard PostgreSQL role.
 
 ## Phase 3: Quote and Cart
-- [ ] 3.1 RED: add quote, fare-unavailable, and duplicate-cart tests in `apps/backend/src/api/store/transfers/__tests__/quote-cart.http.spec.ts`.
-- [ ] 3.2 GREEN: create quote/cart workflows and Store routes in `apps/backend/src/workflows/transport/**`, `apps/backend/src/api/store/transfers/**/route.ts`, `apps/backend/src/links/**`.
-- [ ] 3.3 REFACTOR: centralize immutable quote price snapshot helpers in `apps/backend/src/modules/transport/service.ts`.
+- [x] 3.1 RED: add quote, fare-unavailable, and duplicate-cart tests in `apps/backend/src/api/store/transfers/__tests__/quote-cart.http.spec.ts`.
+- [x] 3.2 GREEN: create quote/cart workflows and Store routes in `apps/backend/src/workflows/transport/**`, `apps/backend/src/api/store/transfers/**/route.ts`, `apps/backend/src/links/**`.
+- [x] 3.3 REFACTOR: centralize immutable quote price snapshot helpers in `apps/backend/src/modules/transport/service.ts`.
 
 ## Phase 4: Reservations
 - [ ] 4.1 RED: add checkout and duplicate-confirmation tests in `apps/backend/src/modules/transport/__tests__/reservation.integration.spec.ts`.

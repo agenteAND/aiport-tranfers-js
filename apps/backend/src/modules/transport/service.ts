@@ -1,6 +1,13 @@
+import { MedusaService } from "@medusajs/framework/utils"
 import { latLngToCell } from "h3-js"
 
 import { assertCellAtResolution, assertUniqueCells } from "./h3-validation"
+import TransportAuditEvent from "./models/audit-event"
+import TransportReservation from "./models/reservation"
+import TransportReservationHold from "./models/reservation-hold"
+import TransportVehicleClass from "./models/vehicle-class"
+import TransportZone from "./models/zone"
+import TransportZoneCell from "./models/zone-cell"
 
 type TransportModuleOptions = {
   h3Resolution?: number
@@ -86,18 +93,39 @@ export type TransferQuoteSnapshot = {
   expires_at: string
 }
 
+type ConfirmTransferReservationInput = {
+  order_id: string
+  cart_id: string
+  line_item_id: string
+  quote_snapshot: TransferQuoteSnapshot
+  order_snapshot: Record<string, unknown>
+  hold_expires_at: Date
+}
+
+type ExpireReservationHoldsInput = {
+  now?: Date
+}
+
 const TRANSFER_FARE_RULES = [
   "origin_zone_id",
   "destination_zone_id",
   "vehicle_class_id",
 ] as const
 
-class TransportModuleService {
+class TransportModuleService extends MedusaService({
+  TransportZone,
+  TransportZoneCell,
+  TransportVehicleClass,
+  TransportReservation,
+  TransportReservationHold,
+  TransportAuditEvent,
+}) {
   private readonly h3Resolution: number
   private readonly zones = new Map<string, ImportedTransportZone>()
   private readonly quotes = new Map<string, TransferQuoteSnapshot>()
 
   constructor(containerOrOptions: any = {}, options?: TransportModuleOptions) {
+    super(...arguments)
     const directResolution = Object.prototype.hasOwnProperty.call(
       containerOrOptions,
       "h3Resolution"
@@ -189,6 +217,78 @@ class TransportModuleService {
 
   getQuoteSnapshot(quoteId: string): TransferQuoteSnapshot | undefined {
     return this.quotes.get(quoteId)
+  }
+
+  async confirmTransferReservation(input: ConfirmTransferReservationInput) {
+    const [existing] = await (this as any).listTransportReservations({
+      order_id: input.order_id,
+      line_item_id: input.line_item_id,
+    })
+
+    if (existing) {
+      return existing
+    }
+
+    const hold = await (this as any).createTransportReservationHolds({
+      quote_id: input.quote_snapshot.quote_id,
+      cart_id: input.cart_id,
+      status: "active",
+      expires_at: input.hold_expires_at,
+    })
+    const reservation = await (this as any).createTransportReservations({
+      order_id: input.order_id,
+      cart_id: input.cart_id,
+      line_item_id: input.line_item_id,
+      status: "confirmed",
+      quote_snapshot: this.createAuditSnapshot("quote", input.quote_snapshot),
+      order_snapshot: this.createAuditSnapshot("order", input.order_snapshot),
+      confirmed_at: new Date(),
+    })
+
+    await (this as any).updateTransportReservationHolds({
+      id: hold.id,
+      status: "confirmed",
+      reservation_id: reservation.id,
+    })
+    await (this as any).createTransportAuditEvents({
+      reservation_id: reservation.id,
+      event_type: "reservation.confirmed",
+      snapshot: this.createAuditSnapshot("reservation", {
+        reservation_id: reservation.id,
+        quote_snapshot: reservation.quote_snapshot,
+        order_snapshot: reservation.order_snapshot,
+      }),
+    })
+
+    return reservation
+  }
+
+  async lookupReservationByOrder(orderId: string) {
+    const [reservation] = await (this as any).listTransportReservations({
+      order_id: orderId,
+    })
+
+    return reservation
+  }
+
+  async expireReservationHolds(input: ExpireReservationHoldsInput = {}) {
+    const now = input.now ?? new Date()
+    const holds = await (this as any).listTransportReservationHolds({
+      status: "active",
+    })
+    const expired = holds.filter((hold: any) => new Date(hold.expires_at) <= now)
+
+    await Promise.all(
+      expired.map((hold: any) =>
+        (this as any).updateTransportReservationHolds({ id: hold.id, status: "expired" })
+      )
+    )
+
+    return expired.map((hold: any) => ({ ...hold, status: "expired" }))
+  }
+
+  createAuditSnapshot(type: string, payload: Record<string, unknown>) {
+    return Object.freeze({ type, payload: structuredClone(payload) })
   }
 
   private isActiveTransferFare(

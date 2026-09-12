@@ -43,9 +43,9 @@ Chain strategy: feature-branch-chain
 - [x] 3.3 REFACTOR: centralize immutable quote price snapshot helpers in `apps/backend/src/modules/transport/service.ts`.
 
 ## Phase 4: Reservations
-- [ ] 4.1 RED: add checkout and duplicate-confirmation tests in `apps/backend/src/modules/transport/__tests__/reservation.integration.spec.ts`.
-- [ ] 4.2 GREEN: add reservation/hold/audit models, confirmation workflow, order links, and expiry job in `apps/backend/src/modules/transport/models/*.ts`, `apps/backend/src/workflows/transport/**`, `apps/backend/src/jobs/expire-transfer-holds.ts`.
-- [ ] 4.3 REFACTOR: reuse audit snapshot creation in `apps/backend/src/modules/transport/service.ts`.
+- [x] 4.1 RED: add checkout and duplicate-confirmation tests in `apps/backend/src/modules/transport/__tests__/reservation.integration.spec.ts`.
+- [x] 4.2 GREEN: add reservation/hold/audit models, confirmation workflow, order links, and expiry job in `apps/backend/src/modules/transport/models/*.ts`, `apps/backend/src/workflows/transport/**`, `apps/backend/src/jobs/expire-transfer-holds.ts`.
+- [x] 4.3 REFACTOR: reuse audit snapshot creation in `apps/backend/src/modules/transport/service.ts`.
 
 ## Phase 5: Assisted Changes and Admin
 - [ ] 5.1 RED: add change delta, `change_request_id`, `provider_event_id`, and error-state tests in `apps/backend/src/modules/transport/__tests__/changes.integration.spec.ts`.

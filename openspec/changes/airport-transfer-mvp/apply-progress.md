@@ -11,9 +11,9 @@
 - [x] 3.1 RED: real Medusa HTTP tests cover valid quote, fare unavailable, accepted quote to cart, and duplicate accepted-quote request.
 - [x] 3.2 GREEN: Store quote/cart routes use the production Medusa Pricing resolver and real product variant/cart workflows with server-side unit price.
 - [x] 3.3 REFACTOR: immutable quote price snapshot/idempotency helpers are centralized in `TransportModuleService` and `quote-cart` workflow helpers.
-- [ ] 4.1 RED: reservation tests.
-- [ ] 4.2 GREEN: reservation models/workflows/job.
-- [ ] 4.3 REFACTOR: audit snapshot creation reuse.
+- [x] 4.1 RED: real Medusa module integration tests cover checkout-backed confirmation, immutable quote/order snapshots, confirmed holds, order lookup, duplicate confirmation replay, and hold expiry.
+- [x] 4.2 GREEN: durable reservation, reservation hold, and audit event models are persisted through the Transport Medusa module service with confirmation workflow, Order module link, and hold-expiry job.
+- [x] 4.3 REFACTOR: audit snapshot creation is reused for quote, order, and reservation audit payloads in `TransportModuleService`.
 - [ ] 5.1 RED: change operation tests.
 - [ ] 5.2 GREEN: provider-agnostic change/event workflows and admin routes.
 - [ ] 5.3 REFACTOR: admin validation/audit helpers.
@@ -31,6 +31,9 @@
 | 3.1 | `apps/backend/src/api/store/transfers/__tests__/quote-cart.http.spec.ts` | HTTP integration | ✅ Pricing integration 4/4 and zone unit 5/5 passed before modifying service/routes | ✅ Initial exact HTTP command failed after tests were added: no matching integration HTTP test path, then missing route/prod behavior | ✅ Final exact HTTP command passed: 1 suite, 4 tests | ✅ 4 cases: valid quote, unavailable fare, quote-to-cart, duplicate accepted quote | ✅ Tests deduplicated without mocking pricing/cart |
 | 3.2 | `apps/backend/src/api/store/transfers/__tests__/quote-cart.http.spec.ts` | HTTP integration | ✅ Same safety net as 3.1 | ✅ HTTP tests exercised missing Store routes and missing quote/cart workflow | ✅ Store quote/cart routes passed through real Medusa app with Pricing, Product, API key, and Cart workflows | ✅ Server-side unit price and duplicate-idempotency paths both exercised | ✅ Scope kept to quote/cart only |
 | 3.3 | `apps/backend/src/api/store/transfers/__tests__/quote-cart.http.spec.ts` | HTTP integration | ✅ Final focused HTTP suite passed before progress update | ✅ Snapshot/idempotency behavior covered by quote-to-cart and duplicate request tests | ✅ `pnpm test` and `pnpm --filter @dtc/backend build` passed after helper centralization | ✅ Immutable snapshot metadata verifies amount preservation in real cart line | ✅ Snapshot helper centralized in `TransportModuleService` |
+| 4.1 | `apps/backend/src/modules/transport/__tests__/reservation.integration.spec.ts` | Module integration | ✅ PR3 focused HTTP suite, `pnpm test`, and build were green in cumulative evidence before PR4 | ✅ Tests were written against missing reservation persistence APIs and models | ✅ `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:modules -- --runTestsByPath src/modules/transport/__tests__/reservation.integration.spec.ts`: PASS, 1 suite passed, 3 tests passed | ✅ 3 cases: confirmation/snapshots/hold/audit/lookup, duplicate replay, hold expiry | ✅ Assertions exercise persisted Medusa module records, not mocks |
+| 4.2 | `apps/backend/src/modules/transport/__tests__/reservation.integration.spec.ts` | Module integration | ✅ 4.1 RED covered the new persistence contract before production code | ✅ Missing model/service/workflow/link/job behavior was required by the integration spec | ✅ Focused reservation integration passed 3/3 through real Transport module persistence | ✅ Duplicate order confirmation and expired-vs-active holds force real persistence logic | ✅ Scope kept to reservation lifecycle only |
+| 4.3 | `apps/backend/src/modules/transport/__tests__/reservation.integration.spec.ts` | Module integration | ✅ Focused reservation integration passed before progress update | ✅ Snapshot behavior covered by confirmation/audit assertions | ✅ `pnpm test` and `pnpm --filter @dtc/backend build` passed after audit snapshot reuse | ✅ Quote, order, and reservation snapshots use the same helper | ✅ Reused helper without speculative abstraction |
 
 ## Work Unit Evidence
 
@@ -50,6 +53,10 @@
 | PR3 runtime harness command/scenario and exact result | Same exact HTTP command is the runtime harness: valid quote, fare unavailable, accepted quote-to-cart, and duplicate accepted quote passed using real Medusa Pricing, Product, API key, and Cart workflows. |
 | PR3 full verification command and exact result | `pnpm test`: PASS, backend unit suite 1 suite/5 tests. `pnpm --filter @dtc/backend build`: PASS, backend and frontend build completed successfully. |
 | PR3 rollback boundary | Revert quote/cart HTTP test, Store transfer quote/cart routes, `apps/backend/src/workflows/transport/quote-cart.ts`, `jest.config.js` HTTP testMatch addition, and quote snapshot additions in `TransportModuleService`; PR1/PR2 pricing and H3 behavior remain. |
+| PR4 focused test command and exact result | `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:modules -- --runTestsByPath src/modules/transport/__tests__/reservation.integration.spec.ts`: PASS, 1 suite passed, 3 tests passed through real Transport module persistence. |
+| PR4 runtime harness command/scenario and exact result | Same exact module integration command is the runtime harness: checkout-backed confirmation persisted one reservation, immutable quote/order snapshots, confirmed hold, order lookup, audit event, duplicate replay, and hold expiry passed without mocks. |
+| PR4 full verification command and exact result | `pnpm test`: PASS, backend unit suite 1 suite/5 tests. `pnpm --filter @dtc/backend build`: PASS, backend and frontend build completed successfully. |
+| PR4 rollback boundary | Revert reservation integration spec, reservation/hold/audit models, Transport service reservation methods, confirmation workflow, Order link, hold-expiry job, and this SDD evidence update without removing PR1 H3, PR2 pricing, or PR3 quote/cart behavior. |
 
 ## Exact Verification Results
 
@@ -63,6 +70,9 @@
 8. PR3 required exact `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:http -- --runTestsByPath src/api/store/transfers/__tests__/quote-cart.http.spec.ts`: PASS, 1 test suite passed, 4 tests passed.
 9. PR3 required exact `pnpm test`: PASS, backend unit suite passed, 1 test suite passed, 5 tests passed.
 10. PR3 required exact `pnpm --filter @dtc/backend build`: PASS, backend and frontend build completed successfully.
+11. PR4 required exact `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:modules -- --runTestsByPath src/modules/transport/__tests__/reservation.integration.spec.ts`: PASS, 1 test suite passed, 3 tests passed.
+12. PR4 required exact `pnpm test`: PASS, backend unit suite passed, 1 test suite passed, 5 tests passed.
+13. PR4 required exact `pnpm --filter @dtc/backend build`: PASS, backend and frontend build completed successfully.
 
 ## Deviations
 
@@ -70,10 +80,11 @@
 - CodeGraph CLI was unavailable (`codegraph: command not found`) after confirming `.codegraph/` exists, so codebase exploration fell back to filesystem reads/searches.
 - The real Medusa Pricing Module test harness requires a PostgreSQL role matching Medusa test-utils defaults (`postgres`) or an equivalent configured `DB_USERNAME`; this workstation's verified local role is `solis`. CI must provide its own `DB_USERNAME` or a standard PostgreSQL role.
 - Medusa Store routes require a valid `x-publishable-api-key`; the PR3 HTTP tests create one through real Medusa API key workflow before calling transfer Store routes.
+- The PR4 module integration harness proves durable Transport module persistence and stores the Medusa order relationship by persisted `order_id` plus an Order module link; it does not implement PR5 change/provider behavior.
 
 ## Remaining Tasks
 
-- Reservation lifecycle, assisted changes, and admin operations remain out of scope for PR3.
+- Assisted changes and admin operations remain out of scope for PR4.
 
 ## PR Boundary
 
@@ -85,3 +96,6 @@
 - Current unit: PR3 Quote and Cart, base = PR2 branch.
 - Boundary: quote/cart HTTP tests, Store transfer quote/cart routes, production quote-cart workflow helper, immutable quote snapshot helper, and SDD progress/task evidence only.
 - Authored changed-line count for PR3 implementation before SDD evidence updates: 400 additions/deletions exactly, including quote/cart code and tests but excluding this apply-progress/tasks evidence update.
+- Current unit: PR4 Reservations, base = PR3 branch.
+- Boundary: checkout-backed reservation lifecycle integration tests, durable Transport reservation/hold/audit models, confirmation workflow, Medusa Order link, hold-expiry job, and SDD progress/task evidence only.
+- Authored changed-line count for PR4 implementation before SDD evidence updates: 273 additions/deletions, including reservation code and tests.

@@ -17,6 +17,9 @@
 - [x] 5.1 RED: real Transport module integration tests cover positive-difference payment-link state, negative-difference refund state, `change_request_id` replay, `provider_event_id` replay, unavailable fare, and failed provider event behavior.
 - [x] 5.2 GREEN: provider-agnostic durable change/event models, workflow boundary, and minimal admin command route invoke the assisted change lifecycle without PR6 CRUD.
 - [x] 5.3 REFACTOR: change identity/state helpers are isolated in `TransportModuleService`; routes remain thin command boundaries.
+- [x] 6.1 RED: real authenticated Medusa Admin HTTP tests cover unauthorized access, authorized zone/fare/reservation corrections, validation rejection, audit persistence, and exception visibility.
+- [x] 6.2 GREEN: minimum Admin HTTP correction routes enforce backend auth, validate narrow payloads, use Transport/Pricing services, and write audit records.
+- [x] 6.3 REFACTOR: shared admin validators and audit serializer methods keep fiscal, currency policy, provider SDKs, cancellation, customer self-service, and unrelated CRUD out of scope.
 
 ## TDD Cycle Evidence
 
@@ -37,6 +40,9 @@
 | 5.1 | `apps/backend/src/modules/transport/__tests__/changes.integration.spec.ts` | Module integration | ✅ PR4 reservation integration safety net passed 3/3 before modifying service/models | ✅ Initial run failed with missing `provider-event` model before production code existed | ✅ Focused changes integration passed 4/4 through real Transport module persistence | ✅ 4 cases: positive delta, negative delta, duplicate replay, unavailable/failed-provider errors | ✅ Assertions exercise workflow + persisted module records |
 | 5.2 | `apps/backend/src/modules/transport/__tests__/changes.integration.spec.ts` | Module integration | ✅ Same safety net as 5.1 | ✅ Tests targeted missing change/event workflow APIs and models | ✅ Provider-agnostic change/event workflow passed 4/4; admin command route compiled in build | ✅ Payment-link, refund, replay, and error paths force real state transitions | ✅ Scope kept to assisted changes only |
 | 5.3 | `apps/backend/src/modules/transport/__tests__/changes.integration.spec.ts` | Module integration | ✅ Focused changes integration passed before final verification | ✅ State-helper behavior covered by RED integration scenarios | ✅ Required focused command, `pnpm test`, and backend build all passed | ✅ Helper handles unavailable, positive-delta, and refund states | ✅ Routes remain thin command boundaries |
+| 6.1 | `apps/backend/src/api/admin/transport/__tests__/admin-transport.http.spec.ts` | HTTP integration | ✅ PR5 changes integration passed 4/4 before modifying service/routes | ✅ First focused HTTP run failed before green (`Config is required for scheduled jobs`; then missing Transport tables) | ✅ Focused Admin HTTP suite passed 4/4 after minimum implementation | ✅ 4 cases: unauthorized, authorized corrections/audit, invalid rejection, exception visibility | ✅ Assertions use real Medusa HTTP auth/module persistence |
+| 6.2 | `apps/backend/src/api/admin/transport/__tests__/admin-transport.http.spec.ts` | HTTP integration | ✅ Same safety net as 6.1 | ✅ Tests targeted missing admin correction and exception APIs | ✅ Required focused command passed 4/4 through real authenticated Admin routes | ✅ Zone, fare, reservation, validation, audit, and exception paths force service behavior | ✅ Routes stay command-only, no admin UI/CRUD expansion |
+| 6.3 | `apps/backend/src/api/admin/transport/__tests__/admin-transport.http.spec.ts` | HTTP integration | ✅ Focused suite passed before final verification | ✅ Shared validation/audit behavior covered by HTTP tests | ✅ `pnpm test` and backend build passed after refactor | ✅ Invalid status and audit assertions cover shared helpers | ✅ Shared validators/audit serializers only |
 
 ## Work Unit Evidence
 
@@ -64,6 +70,10 @@
 | PR5 runtime harness command/scenario and exact result | Same exact module integration command is the runtime harness: positive payment-link state, negative refund state, `change_request_id` replay, `provider_event_id` replay, unavailable fare, and failed provider event behavior all passed without mocks. |
 | PR5 full verification command and exact result | `pnpm test`: PASS, backend unit suite 1 suite/5 tests. `pnpm --filter @dtc/backend build`: PASS, backend and frontend build completed successfully. |
 | PR5 rollback boundary | Revert changes integration spec, reservation-change/provider-event models, Transport service change methods/helpers, request-change workflow wrapper, minimal admin command route, and this SDD evidence update without removing PR1–PR4 behavior. |
+| PR6 focused test command and exact result | `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:http -- --runTestsByPath src/api/admin/transport/__tests__/admin-transport.http.spec.ts`: PASS, 1 suite passed, 4 tests passed through real authenticated Medusa Admin HTTP routes and Transport/Pricing persistence. |
+| PR6 runtime harness command/scenario and exact result | Same exact Admin HTTP command is the runtime harness: unauthorized request rejected, authorized zone/fare/reservation corrections persisted, invalid reservation status rejected without state change, audit persisted, and exceptions visible. |
+| PR6 full verification command and exact result | `pnpm test`: PASS, backend unit suite 1 suite/5 tests. `pnpm --filter @dtc/backend build`: PASS, backend and frontend build completed successfully. |
+| PR6 rollback boundary | Revert Admin transport HTTP spec, admin helper/routes, Transport admin service methods, Transport module migration, hold job config, task/progress evidence; PR1–PR5 behavior remains. |
 
 ## Exact Verification Results
 
@@ -83,6 +93,9 @@
 14. PR5 required exact `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:modules -- --runTestsByPath src/modules/transport/__tests__/changes.integration.spec.ts`: PASS, 1 test suite passed, 4 tests passed.
 15. PR5 required exact `pnpm test`: PASS, backend unit suite passed, 1 test suite passed, 5 tests passed.
 16. PR5 required exact `pnpm --filter @dtc/backend build`: PASS, backend and frontend build completed successfully.
+17. PR6 required exact `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:http -- --runTestsByPath src/api/admin/transport/__tests__/admin-transport.http.spec.ts`: PASS, 1 test suite passed, 4 tests passed.
+18. PR6 required exact `pnpm test`: PASS, backend unit suite passed, 1 test suite passed, 5 tests passed.
+19. PR6 required exact `pnpm --filter @dtc/backend build`: PASS, backend and frontend build completed successfully.
 
 ## Deviations
 
@@ -93,10 +106,11 @@
 - The PR4 module integration harness proves durable Transport module persistence and stores the Medusa order relationship by persisted `order_id` plus an Order module link; it does not implement PR5 change/provider behavior.
 - CodeGraph CLI was unavailable (`codegraph: command not found`) after confirming `.codegraph/` exists, so PR5 code exploration fell back to filesystem reads/searches.
 - PR5 intentionally keeps payment links/refunds as provider-agnostic state contracts (`requires_payment_link`, `requires_refund`) and does not choose or call provider SDKs.
+- PR6 added the missing Transport module migration and scheduled-job config required for real Medusa HTTP/module persistence during app boot.
 
 ## Remaining Tasks
 
-- Phase 6 admin readiness remains out of scope for PR5.
+- All assigned Phase 6 admin readiness tasks are complete; independent SDD verify remains.
 
 ## PR Boundary
 
@@ -114,3 +128,6 @@
 - Current unit: PR5 Assisted Changes, base = PR4 branch.
 - Boundary: durable change/event models, provider-agnostic change workflow, focused Transport module integration tests, and a minimal admin command route only.
 - Authored changed-line count for PR5 implementation before SDD evidence updates: 352 additions/deletions, including code and tests but excluding OpenSpec evidence updates.
+- Current unit: PR6 Admin Readiness, base = PR5 branch.
+- Boundary: authenticated Admin correction HTTP tests/routes, shared admin validators/audit serializers, Transport persistence migration/job boot config, and SDD evidence only.
+- Authored changed-line count for PR6 implementation before SDD evidence updates: 351 additions/deletions; with OpenSpec evidence updates remains under the 400-line budget.

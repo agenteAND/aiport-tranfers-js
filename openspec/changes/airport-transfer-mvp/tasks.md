@@ -46,6 +46,6 @@ Chain strategy: feature-branch-chain
 - [x] 5.3 REFACTOR: isolate change identity/state helpers in `apps/backend/src/modules/transport/service.ts`; keep routes as command boundaries, not admin CRUD.
 
 ## Phase 6: Admin Readiness
-- [ ] 6.1 RED: add authorized zone, fare, reservation correction, validation, audit, and exception visibility tests in `apps/backend/src/api/admin/transport/__tests__/admin-transport.http.spec.ts`.
-- [ ] 6.2 GREEN: add admin zone, fare, reservation correction APIs with validation and audit in `apps/backend/src/api/admin/transport/**/route.ts`, `apps/backend/src/modules/transport/service.ts`.
-- [ ] 6.3 REFACTOR: share admin validators/audit serializers; exclude fiscal, currency, provider, and cancellation policy.
+- [x] 6.1 RED: add authorized zone, fare, reservation correction, validation, audit, and exception visibility tests in `apps/backend/src/api/admin/transport/__tests__/admin-transport.http.spec.ts`.
+- [x] 6.2 GREEN: add admin zone, fare, reservation correction APIs with validation and audit in `apps/backend/src/api/admin/transport/**/route.ts`, `apps/backend/src/modules/transport/service.ts`.
+- [x] 6.3 REFACTOR: share admin validators/audit serializers; exclude fiscal, currency, provider, and cancellation policy.

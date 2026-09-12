@@ -121,6 +121,29 @@ type HandleChangeProviderEventInput = {
   provider_status: "succeeded" | "failed"
 }
 
+type AdminAuditInput = {
+  target_id: string
+  event_type: string
+  actor_id: string
+  reason: string
+  payload: Record<string, unknown>
+}
+
+type AdminZoneCorrectionInput = {
+  id: string
+  name: string
+  active: boolean
+  actor_id: string
+  reason: string
+}
+
+type AdminReservationCorrectionInput = {
+  id: string
+  status: "confirmed" | "cancelled"
+  actor_id: string
+  reason: string
+}
+
 const TRANSFER_FARE_RULES = [
   "origin_zone_id",
   "destination_zone_id",
@@ -393,6 +416,64 @@ class TransportModuleService extends MedusaService({
     })
 
     return updated
+  }
+
+  async adminCorrectZone(input: AdminZoneCorrectionInput) {
+    const [existing] = await (this as any).listTransportZones({ id: input.id })
+    const zone = existing
+      ? await (this as any).updateTransportZones({ id: input.id, name: input.name, active: input.active })
+      : await (this as any).createTransportZones({ id: input.id, name: input.name, active: input.active })
+
+    await this.recordAdminAudit({
+      target_id: input.id,
+      event_type: "admin.zone.corrected",
+      actor_id: input.actor_id,
+      reason: input.reason,
+      payload: { zone_id: input.id, name: input.name, active: input.active },
+    })
+
+    return zone
+  }
+
+  async adminCorrectReservation(input: AdminReservationCorrectionInput) {
+    const before = await (this as any).retrieveTransportReservation(input.id)
+    const reservation = await (this as any).updateTransportReservations({
+      id: input.id,
+      status: input.status,
+    })
+
+    await this.recordAdminAudit({
+      target_id: input.id,
+      event_type: "admin.reservation.corrected",
+      actor_id: input.actor_id,
+      reason: input.reason,
+      payload: { before_status: before.status, after_status: reservation.status },
+    })
+
+    return reservation
+  }
+
+  async listAdminExceptions() {
+    return (await (this as any).listTransportReservationChanges({ status: "error" })).map(
+      (change: any) => ({
+        id: change.id,
+        reservation_id: change.reservation_id,
+        change_request_id: change.change_request_id,
+        error_code: change.error_code,
+      })
+    )
+  }
+
+  async recordAdminAudit(input: AdminAuditInput) {
+    return (this as any).createTransportAuditEvents({
+      reservation_id: input.target_id,
+      event_type: input.event_type,
+      snapshot: this.createAuditSnapshot("admin_operation", {
+        actor_id: input.actor_id,
+        reason: input.reason,
+        ...input.payload,
+      }),
+    })
   }
 
   createAuditSnapshot(type: string, payload: Record<string, unknown>) {

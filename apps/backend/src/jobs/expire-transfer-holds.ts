@@ -10,3 +10,10 @@ export default async function expireTransferHoldsJob(container: MedusaContainer)
 
   return transportService.expireReservationHolds()
 }
+
+export const config = {
+  name: "expire-transfer-holds",
+  schedule: {
+    interval: 60 * 1000,
+  },
+}

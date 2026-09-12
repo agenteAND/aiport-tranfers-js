@@ -22,6 +22,7 @@ import {
   linkSalesChannelsToApiKeyWorkflow,
   linkSalesChannelsToStockLocationWorkflow,
 } from "@medusajs/medusa/core-flows";
+import { PUJ_BOUNDARY_FIXTURES } from "../modules/transport/fixtures/puj-boundary";
 
 export default async function initial_data_seed({
   container,
@@ -819,6 +820,9 @@ export default async function initial_data_seed({
   logger.info("Finished seeding product data.");
 
   logger.info("Seeding inventory levels.");
+  logger.info(
+    `Loaded ${PUJ_BOUNDARY_FIXTURES.length} PUJ H3 transfer zone fixtures.`
+  );
 
   const { data: inventoryItems } = await query.graph({
     entity: "inventory_item",

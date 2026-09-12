@@ -28,9 +28,9 @@ Chain strategy: feature-branch-chain
 | 6 | Admin readiness | PR6 base PR5 | `pnpm test` | authorized admin correction scenario | admin transport routes/validators |
 
 ## Phase 1: H3 Zone Validation
-- [ ] 1.1 RED: add failing resolution, malformed, duplicate, and PUJ boundary tests in `apps/backend/src/modules/transport/__tests__/zone.unit.spec.ts`.
-- [ ] 1.2 GREEN: add H3 dependency/config, module export, zone/cell/vehicle models, service import logic, and fixtures in `apps/backend/package.json`, `apps/backend/medusa-config.ts`, `apps/backend/src/modules/transport/**`, `apps/backend/src/migration-scripts/initial-data-seed.ts`.
-- [ ] 1.3 REFACTOR: extract reusable H3 validation helpers in `apps/backend/src/modules/transport/service.ts`.
+- [x] 1.1 RED: add failing resolution, malformed, duplicate, and PUJ boundary tests in `apps/backend/src/modules/transport/__tests__/zone.unit.spec.ts`.
+- [x] 1.2 GREEN: add H3 dependency/config, module export, zone/cell/vehicle models, service import logic, and fixtures in `apps/backend/package.json`, `apps/backend/medusa-config.ts`, `apps/backend/src/modules/transport/**`, `apps/backend/src/migration-scripts/initial-data-seed.ts`.
+- [x] 1.3 REFACTOR: extract reusable H3 validation helpers in `apps/backend/src/modules/transport/service.ts`.
 
 ## Phase 2: Production Pricing Rules Acceptance Slice
 - [ ] 2.1 RED: add failing one/no/multiple active fare acceptance tests and a representative fixture performance check in `apps/backend/src/modules/transport/__tests__/pricing.integration.spec.ts`.

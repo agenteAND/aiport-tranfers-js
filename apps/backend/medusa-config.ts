@@ -12,5 +12,13 @@ module.exports = defineConfig({
       jwtSecret: process.env.JWT_SECRET,
       cookieSecret: process.env.COOKIE_SECRET,
     }
-  }
+  },
+  modules: [
+    {
+      resolve: "./src/modules/transport",
+      options: {
+        h3Resolution: Number(process.env.TRANSPORT_H3_RESOLUTION ?? 9),
+      },
+    },
+  ],
 })

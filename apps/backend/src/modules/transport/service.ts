@@ -3,7 +3,9 @@ import { latLngToCell } from "h3-js"
 
 import { assertCellAtResolution, assertUniqueCells } from "./h3-validation"
 import TransportAuditEvent from "./models/audit-event"
+import TransportProviderEvent from "./models/provider-event"
 import TransportReservation from "./models/reservation"
+import TransportReservationChange from "./models/reservation-change"
 import TransportReservationHold from "./models/reservation-hold"
 import TransportVehicleClass from "./models/vehicle-class"
 import TransportZone from "./models/zone"
@@ -106,6 +108,19 @@ type ExpireReservationHoldsInput = {
   now?: Date
 }
 
+type RequestReservationChangeInput = {
+  reservation_id: string
+  change_request_id: string
+  new_quote_snapshot?: TransferQuoteSnapshot
+  reason?: string
+}
+
+type HandleChangeProviderEventInput = {
+  provider_event_id: string
+  change_request_id: string
+  provider_status: "succeeded" | "failed"
+}
+
 const TRANSFER_FARE_RULES = [
   "origin_zone_id",
   "destination_zone_id",
@@ -118,6 +133,8 @@ class TransportModuleService extends MedusaService({
   TransportVehicleClass,
   TransportReservation,
   TransportReservationHold,
+  TransportReservationChange,
+  TransportProviderEvent,
   TransportAuditEvent,
 }) {
   private readonly h3Resolution: number
@@ -287,8 +304,111 @@ class TransportModuleService extends MedusaService({
     return expired.map((hold: any) => ({ ...hold, status: "expired" }))
   }
 
+  async requestReservationChange(input: RequestReservationChangeInput) {
+    const [existing] = await (this as any).listTransportReservationChanges({
+      change_request_id: input.change_request_id,
+    })
+
+    if (existing) {
+      return existing
+    }
+
+    const reservation = await (this as any).retrieveTransportReservation(input.reservation_id)
+    const previousQuote = reservation.quote_snapshot.payload as TransferQuoteSnapshot
+    const delta = input.new_quote_snapshot ? input.new_quote_snapshot.amount - previousQuote.amount : 0
+    const state = this.resolveChangeInitialState(input.new_quote_snapshot, delta)
+
+    const change = await (this as any).createTransportReservationChanges({
+      reservation_id: input.reservation_id,
+      change_request_id: input.change_request_id,
+      status: state.status,
+      delta_amount: delta,
+      payment_link_status: state.payment_link_status,
+      refund_status: state.refund_status,
+      error_code: state.error_code,
+      reason: input.reason ?? null,
+      previous_quote_snapshot: this.createAuditSnapshot("quote", previousQuote),
+      requested_quote_snapshot: input.new_quote_snapshot
+        ? this.createAuditSnapshot("quote", input.new_quote_snapshot)
+        : null,
+    })
+
+    await (this as any).createTransportAuditEvents({
+      reservation_id: input.reservation_id,
+      event_type: "reservation_change.requested",
+      snapshot: this.createAuditSnapshot("reservation_change", {
+        change_request_id: input.change_request_id,
+        status: change.status,
+        delta_amount: change.delta_amount,
+        error_code: change.error_code,
+      }),
+    })
+
+    return change
+  }
+
+  async handleChangeProviderEvent(input: HandleChangeProviderEventInput) {
+    const [existingEvent] = await (this as any).listTransportProviderEvents({
+      provider_event_id: input.provider_event_id,
+    })
+
+    if (existingEvent) {
+      return (this as any).retrieveTransportReservationChange(existingEvent.change_id)
+    }
+
+    const [change] = await (this as any).listTransportReservationChanges({
+      change_request_id: input.change_request_id,
+    })
+    const nextStatus = input.provider_status === "succeeded" ? "confirmed" : "error"
+    const errorCode = input.provider_status === "succeeded" ? null : "provider_event_failed"
+    const updated = await (this as any).updateTransportReservationChanges({
+      id: change.id,
+      status: nextStatus,
+      error_code: errorCode,
+    })
+
+    await (this as any).createTransportProviderEvents({
+      provider_event_id: input.provider_event_id,
+      change_request_id: input.change_request_id,
+      provider_status: input.provider_status,
+      change_id: change.id,
+    })
+
+    if (nextStatus === "confirmed") {
+      await (this as any).updateTransportReservations({
+        id: change.reservation_id,
+        quote_snapshot: change.requested_quote_snapshot,
+      })
+    }
+
+    await (this as any).createTransportAuditEvents({
+      reservation_id: change.reservation_id,
+      event_type: `reservation_change.${nextStatus}`,
+      snapshot: this.createAuditSnapshot("reservation_change", {
+        change_request_id: input.change_request_id,
+        provider_event_id: input.provider_event_id,
+        status: nextStatus,
+        error_code: errorCode,
+      }),
+    })
+
+    return updated
+  }
+
   createAuditSnapshot(type: string, payload: Record<string, unknown>) {
     return Object.freeze({ type, payload: structuredClone(payload) })
+  }
+
+  private resolveChangeInitialState(quote: TransferQuoteSnapshot | undefined, delta: number) {
+    if (!quote) {
+      return { status: "error", error_code: "fare_unavailable", payment_link_status: null, refund_status: null }
+    }
+
+    if (delta > 0) {
+      return { status: "pending_payment", error_code: null, payment_link_status: "requires_payment_link", refund_status: null }
+    }
+
+    return { status: "pending_refund", error_code: null, payment_link_status: null, refund_status: "requires_refund" }
   }
 
   private isActiveTransferFare(

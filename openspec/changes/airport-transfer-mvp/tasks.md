@@ -2,14 +2,7 @@
 
 ## Review Workload Forecast
 
-| Field | Value |
-|---|---|
-| Estimated changed lines | 1,200-1,800 |
-| 400-line budget risk | High |
-| Chained PRs recommended | Yes |
-| Suggested split | PR1 H3 -> PR2 Production Pricing Rules Acceptance Slice -> PR3 Quote/Cart -> PR4 Reservations -> PR5 Changes -> PR6 Admin |
-| Delivery strategy | auto-chain |
-| Chain strategy | feature-branch-chain |
+Estimate: 1,200-1,800 lines; auto-chain feature-branch-chain; split PR1 H3 -> PR2 Pricing -> PR3 Quote/Cart -> PR4 Reservations -> PR5 Changes -> PR6 Admin.
 
 Decision needed before apply: No
 Chained PRs recommended: Yes
@@ -18,14 +11,14 @@ Chain strategy: feature-branch-chain
 
 ### Suggested Work Units
 
-| Unit | Goal | Likely PR/base | Focused test command | Runtime harness | Rollback boundary |
+| Unit | PR/base | Goal | Focused command | Harness | Rollback |
 |---|---|---|---|---|---|
-| 1 | H3 zones, fixtures, import validation | PR1 base tracker | `pnpm test` | PUJ fixture zone import scenario | transport module/config/H3 seed |
-| 2 | Production Pricing Rules Acceptance Slice | PR2 base PR1 | `pnpm test` | production resolver with one/no/multiple matches and representative fixture performance | production pricing resolver and acceptance tests |
-| 3 | Quote and cart conversion | PR3 base PR2 | `pnpm test` | Store quote-to-cart HTTP scenario | quote/cart workflows/routes |
-| 4 | Checkout reservation lifecycle | PR4 base PR3 | `pnpm test` | checkout confirmation replay | reservation models/workflows/job |
-| 5 | Assisted paid changes | PR5 base PR4 | `pnpm test` | admin change plus webhook replay | change/event workflow/routes |
-| 6 | Admin readiness | PR6 base PR5 | `pnpm test` | authorized admin correction scenario | admin transport routes/validators |
+| 1 | PR1 tracker | H3 zones | `pnpm test` | PUJ import | transport H3 seed |
+| 2 | PR2 base PR1 | Pricing rules | `pnpm test` | one/no/multiple matches | pricing resolver/tests |
+| 3 | PR3 base PR2 | Quote/cart | `pnpm test` | Store HTTP quote-cart | quote/cart routes |
+| 4 | PR4 base PR3 | Reservations | `pnpm test` | checkout replay | reservation workflows/job |
+| 5 | PR5 base PR4 | Assisted changes | `pnpm test -- changes.integration.spec.ts` | admin command + webhook replay | change workflow/state/events |
+| 6 | PR6 base PR5 | Admin readiness | `pnpm test -- admin-transport.http.spec.ts` | authorized correction | admin routes/validators/audit |
 
 ## Phase 1: H3 Zone Validation
 - [x] 1.1 RED: add failing resolution, malformed, duplicate, and PUJ boundary tests in `apps/backend/src/modules/transport/__tests__/zone.unit.spec.ts`.
@@ -47,7 +40,12 @@ Chain strategy: feature-branch-chain
 - [x] 4.2 GREEN: add reservation/hold/audit models, confirmation workflow, order links, and expiry job in `apps/backend/src/modules/transport/models/*.ts`, `apps/backend/src/workflows/transport/**`, `apps/backend/src/jobs/expire-transfer-holds.ts`.
 - [x] 4.3 REFACTOR: reuse audit snapshot creation in `apps/backend/src/modules/transport/service.ts`.
 
-## Phase 5: Assisted Changes and Admin
-- [ ] 5.1 RED: add change delta, `change_request_id`, `provider_event_id`, and error-state tests in `apps/backend/src/modules/transport/__tests__/changes.integration.spec.ts`.
-- [ ] 5.2 GREEN: implement provider-agnostic change/event workflows and admin routes in `apps/backend/src/workflows/transport/**`, `apps/backend/src/api/admin/transport/**/route.ts`.
-- [ ] 5.3 REFACTOR: share admin validation/audit helpers without adding fiscal, currency, provider, or cancellation policy.
+## Phase 5: Assisted Changes
+- [x] 5.1 RED: add delta, `change_request_id`, `provider_event_id`, payment-link/refund transition, replay, and error tests in `apps/backend/src/modules/transport/__tests__/changes.integration.spec.ts`.
+- [x] 5.2 GREEN: implement provider-agnostic change workflow, minimal admin command route, event replay, and error states in `apps/backend/src/workflows/transport/**`, `apps/backend/src/api/admin/transport/reservations/**/route.ts`.
+- [x] 5.3 REFACTOR: isolate change identity/state helpers in `apps/backend/src/modules/transport/service.ts`; keep routes as command boundaries, not admin CRUD.
+
+## Phase 6: Admin Readiness
+- [ ] 6.1 RED: add authorized zone, fare, reservation correction, validation, audit, and exception visibility tests in `apps/backend/src/api/admin/transport/__tests__/admin-transport.http.spec.ts`.
+- [ ] 6.2 GREEN: add admin zone, fare, reservation correction APIs with validation and audit in `apps/backend/src/api/admin/transport/**/route.ts`, `apps/backend/src/modules/transport/service.ts`.
+- [ ] 6.3 REFACTOR: share admin validators/audit serializers; exclude fiscal, currency, provider, and cancellation policy.

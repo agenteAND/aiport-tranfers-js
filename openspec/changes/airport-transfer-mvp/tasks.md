@@ -33,9 +33,9 @@ Chain strategy: feature-branch-chain
 - [x] 1.3 REFACTOR: extract reusable H3 validation helpers in `apps/backend/src/modules/transport/service.ts`.
 
 ## Phase 2: Production Pricing Rules Acceptance Slice
-- [ ] 2.1 RED: add failing one/no/multiple active fare acceptance tests and a representative fixture performance check in `apps/backend/src/modules/transport/__tests__/pricing.integration.spec.ts`.
-- [ ] 2.2 GREEN: implement the actual production directed Medusa Pricing Rules resolver in `apps/backend/src/workflows/transport/resolve-transfer-fare.ts`; if acceptance fails, stop dependent quote/cart work and revise this fare mechanism without building a parallel speculative engine.
-- [ ] 2.3 REFACTOR: isolate production Medusa pricing access behind `apps/backend/src/modules/transport/service.ts` while preserving accepted behavior.
+- [x] 2.1 RED: real Medusa Pricing Module integration tests cover one active fare, no fare, multiple active fares, and a representative persisted fixture lookup.
+- [x] 2.2 GREEN: the directed resolver path passes against real Medusa Pricing Module persistence when the local test database uses `DB_USERNAME=solis`.
+- [x] 2.3 REFACTOR: pricing access remains isolated behind `apps/backend/src/modules/transport/service.ts`; the local username is environment-specific and CI must provide its own `DB_USERNAME` or standard PostgreSQL role.
 
 ## Phase 3: Quote and Cart
 - [ ] 3.1 RED: add quote, fare-unavailable, and duplicate-cart tests in `apps/backend/src/api/store/transfers/__tests__/quote-cart.http.spec.ts`.

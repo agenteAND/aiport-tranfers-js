@@ -74,6 +74,12 @@
 | PR6 runtime harness command/scenario and exact result | Same exact Admin HTTP command is the runtime harness: unauthorized request rejected, authorized zone/fare/reservation corrections persisted, invalid reservation status rejected without state change, audit persisted, and exceptions visible. |
 | PR6 full verification command and exact result | `pnpm test`: PASS, backend unit suite 1 suite/5 tests. `pnpm --filter @dtc/backend build`: PASS, backend and frontend build completed successfully. |
 | PR6 rollback boundary | Revert Admin transport HTTP spec, admin helper/routes, Transport admin service methods, Transport module migration, hold job config, task/progress evidence; PR1–PR5 behavior remains. |
+| Final verification remediation RED evidence | Failed evidence revision `sha256:dfb204b0261bc469cf5f7da799c6f6245d0b3a1f2b70911caeb10c48ec1d7377`: `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:modules -- --runTestsByPath src/modules/transport/__tests__/pricing.integration.spec.ts` failed 4/4 with `TypeError: Cannot read properties of undefined (reading 'baseRepository')` from `new TransportModuleService()` in `resolve-transfer-fare.ts`. |
+| Final verification remediation focused pricing result | `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:modules -- --runTestsByPath src/modules/transport/__tests__/pricing.integration.spec.ts`: PASS, 1 suite passed, 4 tests passed. The resolver now requires the Transport module service supplied from the Medusa app/container path and no longer constructs an in-memory service fallback. |
+| Final verification remediation HTTP auth result | `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:http -- --runTestsByPath src/api/admin/transport/__tests__/admin-transport.http.spec.ts`: PASS, 1 suite passed, 5 tests passed. The suite reaches `/admin/transport/reservations/:id/changes`, rejects unauthenticated requests with 401, and accepts an authorized assisted-change command with 202. |
+| Final verification remediation changes result | `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:modules -- --runTestsByPath src/modules/transport/__tests__/changes.integration.spec.ts`: PASS, 1 suite passed, 4 tests passed. |
+| Final verification remediation full verification | `pnpm test`: PASS, backend unit suite 1 suite/5 tests. `pnpm --filter @dtc/backend build`: PASS, backend and frontend build completed successfully. |
+| Final verification remediation rollback boundary | Revert `apps/backend/src/workflows/transport/resolve-transfer-fare.ts`, `apps/backend/src/modules/transport/__tests__/pricing.integration.spec.ts`, `apps/backend/src/api/admin/transport/reservations/[id]/changes/route.ts`, `apps/backend/src/api/admin/transport/__tests__/admin-transport.http.spec.ts`, and this apply-progress evidence update. |
 
 ## Exact Verification Results
 
@@ -96,6 +102,12 @@
 17. PR6 required exact `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:http -- --runTestsByPath src/api/admin/transport/__tests__/admin-transport.http.spec.ts`: PASS, 1 test suite passed, 4 tests passed.
 18. PR6 required exact `pnpm test`: PASS, backend unit suite passed, 1 test suite passed, 5 tests passed.
 19. PR6 required exact `pnpm --filter @dtc/backend build`: PASS, backend and frontend build completed successfully.
+20. Final verification remediation RED for failed revision `sha256:dfb204b0261bc469cf5f7da799c6f6245d0b3a1f2b70911caeb10c48ec1d7377`: `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:modules -- --runTestsByPath src/modules/transport/__tests__/pricing.integration.spec.ts`: FAIL, 1 suite failed, 4 tests failed with `baseRepository` undefined from fallback `new TransportModuleService()`.
+21. Final verification remediation required exact `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:modules -- --runTestsByPath src/modules/transport/__tests__/pricing.integration.spec.ts`: PASS, 1 test suite passed, 4 tests passed.
+22. Final verification remediation required exact `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:http -- --runTestsByPath src/api/admin/transport/__tests__/admin-transport.http.spec.ts`: PASS, 1 test suite passed, 5 tests passed.
+23. Final verification remediation required exact `DB_USERNAME=solis pnpm --filter @dtc/backend test:integration:modules -- --runTestsByPath src/modules/transport/__tests__/changes.integration.spec.ts`: PASS, 1 test suite passed, 4 tests passed.
+24. Final verification remediation required exact `pnpm test`: PASS, backend unit suite passed, 1 test suite passed, 5 tests passed.
+25. Final verification remediation required exact `pnpm --filter @dtc/backend build`: PASS, backend and frontend build completed successfully.
 
 ## Deviations
 
@@ -107,10 +119,13 @@
 - CodeGraph CLI was unavailable (`codegraph: command not found`) after confirming `.codegraph/` exists, so PR5 code exploration fell back to filesystem reads/searches.
 - PR5 intentionally keeps payment links/refunds as provider-agnostic state contracts (`requires_payment_link`, `requires_refund`) and does not choose or call provider SDKs.
 - PR6 added the missing Transport module migration and scheduled-job config required for real Medusa HTTP/module persistence during app boot.
+- Final verification remediation removed an unsafe direct `TransportModuleService` constructor fallback and moved pricing proof to the real Medusa app/container service path.
+- Final verification remediation added explicit backend admin authorization to the assisted-change command route and proved both unauthorized rejection and authorized command behavior over real HTTP.
 
 ## Remaining Tasks
 
 - All assigned Phase 6 admin readiness tasks are complete; independent SDD verify remains.
+- Final verification remediation is complete for failed evidence revision `sha256:dfb204b0261bc469cf5f7da799c6f6245d0b3a1f2b70911caeb10c48ec1d7377`; independent SDD re-verification remains.
 
 ## PR Boundary
 

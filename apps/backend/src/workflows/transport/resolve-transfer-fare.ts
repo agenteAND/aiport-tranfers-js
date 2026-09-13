@@ -7,13 +7,13 @@ import TransportModuleService, {
 type ResolveTransferFareArgs = {
   input: ResolveTransferFareInput
   pricingModuleService: TransferFarePricingAccess
-  transportService?: TransportModuleService
+  transportService: TransportModuleService
 }
 
 export const resolveTransferFare = async ({
   input,
   pricingModuleService,
-  transportService = new TransportModuleService(),
+  transportService,
 }: ResolveTransferFareArgs): Promise<TransferFareResolution> => {
   return transportService.resolveTransferFare(pricingModuleService, input)
 }

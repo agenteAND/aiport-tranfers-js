@@ -55,6 +55,24 @@ medusaIntegrationTestRunner({
         })
       })
 
+      it("authorizes assisted-change commands through the admin route", async () => {
+        const reservation = await createReservation("authorized_change")
+        const newQuote = { ...quoteSnapshot, quote_id: "trq_admin_change", amount: 6100 }
+
+        await expect(api.post(`/admin/transport/reservations/${reservation.id}/changes`, { change_request_id: "chg_admin_route", new_quote_snapshot: newQuote, reason: "Operator assisted change" })).rejects.toMatchObject({
+          response: { status: 401 },
+        })
+
+        const response = await api.post(
+          `/admin/transport/reservations/${reservation.id}/changes`,
+          { change_request_id: "chg_admin_route", new_quote_snapshot: newQuote, reason: "Operator assisted change" },
+          { headers: await authHeaders() }
+        )
+
+        expect(response.status).toBe(202)
+        expect(response.data.change).toEqual(expect.objectContaining({ change_request_id: "chg_admin_route", status: "pending_payment" }))
+      })
+
       it("applies authorized zone, fare, and reservation corrections with persisted audits", async () => {
         const headers = await authHeaders()
         const reservation = await createReservation("admin_correction")

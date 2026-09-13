@@ -1,15 +1,8 @@
-import { moduleIntegrationTestRunner } from "@medusajs/test-utils"
-import { Modules } from "@medusajs/framework/utils"
-import path from "path"
+import { medusaIntegrationTestRunner } from "@medusajs/test-utils"
 
-import { TransferFarePricingAccess } from "../service"
+import { TRANSPORT_MODULE } from ".."
+import TransportModuleService, { TransferFarePricingAccess } from "../service"
 import { resolveTransferFare } from "../../../workflows/transport/resolve-transfer-fare"
-
-const medusaPackageRoot = path.dirname(require.resolve("@medusajs/medusa/package.json"))
-const pricingModuleResolve = medusaPackageRoot.replace(
-  `${path.sep}@medusajs${path.sep}medusa`,
-  `${path.sep}@medusajs${path.sep}pricing`
-)
 
 type PricingModuleService = TransferFarePricingAccess & {
   createPriceSets: (input: {
@@ -56,22 +49,31 @@ const createFare = async (
   })
 }
 
-moduleIntegrationTestRunner<PricingModuleService>({
-  moduleName: Modules.PRICING,
-  resolve: pricingModuleResolve,
-  testSuite: ({ service }) => {
+medusaIntegrationTestRunner({
+  testSuite: ({ getContainer }) => {
     describe("production transfer fare pricing rules", () => {
+      const services = () => {
+        const container = getContainer()
+
+        return {
+          pricing: container.resolve("pricing") as PricingModuleService,
+          transport: container.resolve(TRANSPORT_MODULE) as TransportModuleService,
+        }
+      }
+
       it("returns exactly one active directed fare from persisted Medusa price rules", async () => {
+        const { pricing, transport } = services()
         const input = inputFor("single")
-        await createFare(service, input, 6400, {
+        await createFare(pricing, input, 6400, {
           origin_zone_id: input.destination_zone_id,
           destination_zone_id: input.origin_zone_id,
         })
-        const matchingPriceSet = await createFare(service, input, 5200)
+        const matchingPriceSet = await createFare(pricing, input, 5200)
 
         const result = await resolveTransferFare({
           input,
-          pricingModuleService: service,
+          pricingModuleService: pricing,
+          transportService: transport,
         })
 
         expect(result).toEqual({
@@ -89,14 +91,16 @@ moduleIntegrationTestRunner<PricingModuleService>({
       })
 
       it("returns unavailable without a quote when no persisted active fare matches", async () => {
+        const { pricing, transport } = services()
         const input = inputFor("none")
-        await createFare(service, input, 4100, {
+        await createFare(pricing, input, 4100, {
           vehicle_class_id: "vehicle-sedan",
         })
 
         const result = await resolveTransferFare({
           input,
-          pricingModuleService: service,
+          pricingModuleService: pricing,
+          transportService: transport,
         })
 
         expect(result).toEqual({
@@ -106,13 +110,15 @@ moduleIntegrationTestRunner<PricingModuleService>({
       })
 
       it("returns ambiguous without a quote when multiple persisted active fares match", async () => {
+        const { pricing, transport } = services()
         const input = inputFor("multiple")
-        await createFare(service, input, 5200)
-        await createFare(service, input, 5400)
+        await createFare(pricing, input, 5200)
+        await createFare(pricing, input, 5400)
 
         const result = await resolveTransferFare({
           input,
-          pricingModuleService: service,
+          pricingModuleService: pricing,
+          transportService: transport,
         })
 
         expect(result).toEqual({
@@ -122,20 +128,22 @@ moduleIntegrationTestRunner<PricingModuleService>({
       })
 
       it("measures a representative persisted pricing-rule fixture matrix", async () => {
+        const { pricing, transport } = services()
         const input = inputFor("representative")
         for (let index = 0; index < 48; index++) {
-          await createFare(service, input, 3000 + index, {
+          await createFare(pricing, input, 3000 + index, {
             origin_zone_id: `zone-origin-representative-${index}`,
             destination_zone_id: `zone-destination-representative-${index}`,
             vehicle_class_id: index === 31 ? input.vehicle_class_id : "vehicle-sedan",
           })
         }
-        await createFare(service, input, 5700)
+        await createFare(pricing, input, 5700)
 
         const startedAt = performance.now()
         const result = await resolveTransferFare({
           input,
-          pricingModuleService: service,
+          pricingModuleService: pricing,
+          transportService: transport,
         })
         const elapsedMs = performance.now() - startedAt
 

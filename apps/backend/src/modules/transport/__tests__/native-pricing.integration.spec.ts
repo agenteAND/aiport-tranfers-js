@@ -227,6 +227,9 @@ medusaIntegrationTestRunner({
           fares: [
             fare(sedan.variant_id, PHASE0_ZONE_PUJ, PHASE0_ZONE_PUNTA_CANA, 5200, "usd"),
             fare(sedan.variant_id, PHASE0_ZONE_PUJ, PHASE0_ZONE_PUNTA_CANA, 312000, ALT_CURRENCY),
+            // Reverse direction priced in usd ONLY. Requesting it in `dop` must
+            // report no price rather than falling back to the usd amount.
+            fare(sedan.variant_id, PHASE0_ZONE_PUNTA_CANA, PHASE0_ZONE_PUJ, 4800, "usd"),
           ],
         })
 
@@ -239,6 +242,14 @@ medusaIntegrationTestRunner({
           pricing: pricingAccess(container),
           price_set_ids: [priceSet.price_set_id],
           context: context(sedan.variant_id, PHASE0_ZONE_PUJ, PHASE0_ZONE_PUNTA_CANA, ALT_CURRENCY),
+        })
+        // Same reverse direction, requested in usd, where a rule DOES exist.
+        // This guards the premise of the absent-currency assertion below: if the
+        // usd rule were missing, `no_price` would prove nothing about fallback.
+        const reverseUsdResult = await resolveNativeTransportPrice({
+          pricing: pricingAccess(container),
+          price_set_ids: [priceSet.price_set_id],
+          context: context(sedan.variant_id, PHASE0_ZONE_PUNTA_CANA, PHASE0_ZONE_PUJ, "usd"),
         })
         const absentResult = await resolveNativeTransportPrice({
           pricing: pricingAccess(container),
@@ -260,6 +271,16 @@ medusaIntegrationTestRunner({
         expect(
           dopResult.status === "priced" ? dopResult.price.currency_code : undefined
         ).toBe(ALT_CURRENCY)
+        // Premise guard: the reverse direction IS priced in usd, so the
+        // absent-currency assertion below genuinely tests currency isolation
+        // rather than a direction that simply has no rule at all.
+        expect(reverseUsdResult.status).toBe("priced")
+        expect(
+          reverseUsdResult.status === "priced"
+            ? reverseUsdResult.price.amount
+            : undefined
+        ).toBe(4800)
+        // Requesting that same direction in dop must NOT fall back to 4800 usd.
         expect(absentResult.status).toBe("no_price")
       })
 

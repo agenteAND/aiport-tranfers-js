@@ -340,6 +340,18 @@ Practical reading for a Punta Cana / Bávaro / Cap Cana service area:
 
 **Short answer: No.** H3 cells stored in ordinary indexed PostgreSQL columns are sufficient and preferable for this product. PostGIS would add operational and migration surface without changing any MVP capability.
 
+**Important: this is NOT the general claim that H3 replaces PostGIS. It does not, and it is not meant to.** [verified — H3 and PostGIS documentation]
+
+H3 and PostGIS operate at different layers, which is why the GIS literature consistently presents them as **complementary**:
+
+- **H3 is a discretization scheme.** It turns a coordinate or an area into integer cell IDs so that ordinary B-tree indexes can serve them. It ships no geometry type, no spatial predicates, and no spatial index of its own. It is a *naming convention for pieces of the map*.
+- **PostGIS is a spatial engine.** It provides `geometry`/`geography` types, GiST spatial indexes, exact predicates (`ST_Contains`, `ST_Intersects`), metric operations (`ST_Distance`, `ST_DWithin`, `ST_Buffer`), set operations (intersection, union, difference), and ingestion/validation of standard geometry formats such as GeoJSON and shapefiles.
+- **H3 cannot substitute for the metric and geometric half.** Hexagonal cells distort with latitude, so H3 gives grid distance and neighbour relationships, not true metres or areas. Cells also do not align with legal or administrative boundaries; a boundary cell is assigned wholesale to one side.
+
+H3 therefore **substitutes for exactly one PostGIS job — a fast point-in-zone lookup — and complements PostGIS for everything else.**
+
+The recommendation below is scoped to *this product's* requirements, not to spatial work in general: the PRD explicitly rejects exact polygon boundaries as a non-goal, and the product does not price by distance, so the single substitutable job is the only spatial job we have. **If any of the "would change the answer" conditions in §13 appears, we need PostGIS — H3 will not cover it.**
+
 **Can H3 alone answer "which zone is this coordinate in?" — Yes [inference].**
 The runtime question is entirely answerable with one equality lookup:
 

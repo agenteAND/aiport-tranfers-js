@@ -6,6 +6,30 @@ Newest first.
 
 ---
 
+## 2026-09-19 — Fiscal invoicing is out of scope for now
+
+**Decision:** Dominican e-CF fiscal invoicing is excluded from the current scope and deferred. It will be revisited later.
+
+**Why:** The product owner deferred it explicitly while reviewing remaining items.
+
+**Alternatives rejected:** None weighed; this is a deferral, not a rejection of the underlying legal requirement.
+
+**Consequences:** The PRD must keep fiscal invoicing out of MVP scope or mark it explicitly deferred. Medusa's order confirmation is not a valid fiscal invoice, so nothing built now may be presented as one. Revisit before any production launch in the Dominican Republic.
+
+---
+
+## 2026-09-18 — H3 complements PostGIS; it does not replace it
+
+**Decision:** H3 is adopted as the runtime zone index, and PostGIS is not used for the MVP. This is a **product-scoped** decision, not a general claim that H3 replaces PostGIS.
+
+**Why:** H3 and PostGIS operate at different layers. H3 is a discretisation scheme (coordinate → integer cell ID, served by an ordinary B-tree index) with no geometry type, spatial predicates, or spatial index. PostGIS is a spatial engine providing exact predicates, metric distance/buffer/nearest operations, set operations, and standard geometry ingestion. H3 substitutes for exactly one PostGIS job — fast point-in-zone lookup — and complements it for everything else. H3 also cannot compute true distance or area, and its cells do not align with legal boundaries.
+
+**Alternatives rejected:** PostGIS geometry with `ST_Contains` — rejected for the MVP because the PRD explicitly rejects an exact polygon system, the product does not price by distance, and Medusa's MikroORM migration model does not model `geometry` columns natively.
+
+**Consequences:** Add PostGIS if any of these appear: a legal boundary must match an official polygon exactly; resolution 10 cannot separate two addresses that must price differently; or a requirement for metric distance, buffers, or nearest-neighbour (for example ETA by distance, or "within 5 km of the airport"). In those cases H3 will not cover it.
+
+---
+
 ## 2026-09-18 — Adopt ODD, abandon SDD
 
 **Decision:** The project uses ODD (Organic Driven Development) as its only workflow. SDD artifacts and ceremony are removed.

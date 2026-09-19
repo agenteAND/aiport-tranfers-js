@@ -5,6 +5,22 @@
 **Subject repository:** `ground-transportation-fare` (`@dtc/backend`, MedusaJS 2.20.1)
 **Companion documents:** `docs/product/airport-transfer-prd.md`, `odd/index.md`
 
+> ## ⚠ CORRECTION — 2026-09-19
+>
+> Two claims in this document were **wrong** and have been corrected:
+>
+> 1. "Availability / time-windowed capacity holds — **Not available**" → the official
+>    **Ticket Booking System recipe** models capacity per window by creating one inventory
+>    item per window. Only the **TTL hold** is ours. The advice "do not model capacity holds
+>    as inventory" is retracted. See §10.1.
+> 2. "Transport reservations as a booking concept — **NOT native**" → true that there is no
+>    native aggregate, but Medusa ships **two official booking patterns** to copy (Ticket
+>    Booking recipe, Product Rentals tutorial). See §10.4 and
+>    `docs/research/03-medusa-booking-and-rental-patterns.md`.
+>
+> The PostGIS verdict, the pricing findings, and the geocoding/zone-modeling findings are
+> unaffected and still stand.
+
 ## 0. Scope, method, and evidence rules
 
 This document answers two questions:
@@ -47,10 +63,10 @@ This document answers two questions:
 | 9 | Scheduled jobs | **Native** | [Scheduled jobs](https://docs.medusajs.com/learn/fundamentals/scheduled-jobs) | Expire-holds job pattern is supported. |
 | 9b | Subscribers / events | **Native** | [Events and subscribers](https://docs.medusajs.com/learn/fundamentals/events-and-subscribers) | Notifications and side effects hang off events. |
 | 9c | Notifications (email/SMS) | **Native** | [Notification module](https://docs.medusajs.com/resources/infrastructure-modules/notification) | Use the Notification Module + provider instead of a bespoke mailer. |
-| 10 | Availability / time-windowed capacity holds | **Not available** | — (absence; see §10) | Ours to build (already partially exists). |
+| 10 | Availability / time-windowed capacity holds | **Partial — composable** | [Ticket booking recipe](https://docs.medusajs.com/resources/recipes/ticket-booking) | Capacity windows ARE supported natively by creating **one inventory item per window** (the official ticket-booking pattern: one item per show date and section). Only the TTL hold is ours. See §10.1. |
 | 10b | Address geocoding | **Not available** | — | External provider + our own persistence. |
 | 10c | Zone / polygon modeling | **Not available** | — | Ours (H3 module already exists). |
-| 10d | Transport reservations as a domain concept | **Not available** | — | Ours (Inventory "reservations" are stock, not bookings). |
+| 10d | Transport reservations as a domain concept | **Not provided, but officially templated** | [Ticket booking recipe](https://docs.medusajs.com/resources/recipes/ticket-booking), [Product rentals tutorial](https://docs.medusajs.com/resources/how-to-tutorials/tutorials/product-rentals) | No native reservation aggregate, but Medusa ships two official booking patterns to copy. `transport_reservation` stays custom, linked to Order. See §10.4. |
 | 11 | H3 polygon→cells, coordinate→cell, hierarchy | **N/A (library)** | [H3 regions](https://h3geo.org/docs/api/regions), [H3 indexing](https://h3geo.org/docs/highlights/indexing) | Fits the existing module. |
 | 12 | Point-in-polygon containment in the DB | **N/A (PostGIS)** | [ST_Contains](https://postgis.net/docs/ST_Contains.html) | Not required by the H3 model. |
 | 13 | PostGIS | **Not required (recommendation)** | [Spatial indexing](https://postgis.net/workshops/postgis-intro/indexing.html) | See §12–§13. |
@@ -239,9 +255,18 @@ Source: [Notification module](https://docs.medusajs.com/resources/infrastructure
 
 These are the gaps. Each is stated with the reason it is a gap and the recommendation.
 
-**10.1 Availability and time-windowed capacity holds — NOT native.**
-Medusa's Inventory Module manages stock quantities and inventory reservations tied to inventory items and stock locations. That is a quantity-at-a-location model, not a **time-windowed per-vehicle capacity** model (e.g. "2 vans free at 14:30 on 2027-01-04"). [inference] Repurposing inventory items as per-slot buckets would fight the module's semantics and its stock-location assumptions.
-**Recommendation (ours to build):** keep the existing `reservation_hold` model with `quote_id`, `cart_id`, `status`, and `expires_at`, plus a capacity policy per vehicle class and a blackout calendar. Expiry is already handled by the 60-second job. Do **not** model capacity holds as inventory.
+**10.1 Availability and time-windowed capacity holds — PARTLY NATIVE, and officially templated.**
+*(Corrected: an earlier draft said "NOT native" and advised against using inventory. That was wrong — see below.)*
+
+Medusa's Inventory Module is a **quantity-at-a-location** model: `InventoryLevel` and `ReservationItem` carry no start time, end time, or expiry field. That part of the earlier finding stands. [verified]
+
+What the earlier draft missed: **the official Ticket Booking System recipe solves exactly this problem using inventory items as per-window capacity buckets.** It creates one inventory item per show date and seating section, with the available quantity set to the seats in that section for that date, explicitly to prevent overbooking. The time dimension lives in *our* item identity, not in the Inventory Module. ([Ticket booking recipe](https://docs.medusajs.com/resources/recipes/ticket-booking))
+
+So the correct split is:
+- **Capacity per window → use inventory.** One inventory item per (service window × vehicle variant), then reserve against it. This is the supported, documented pattern, and it gives us overselling protection through the engine rather than beside it.
+- **TTL hold (reserve now, auto-release if unpaid) → ours.** There is no native primitive for a temporary hold with expiry. Release is a scheduled job, and concurrency is serialized with the Locking Module. The community plugin `RSC-Labs/medusa-booking-system` covers this gap with `reservation_ttl_seconds` and a `/hold` endpoint and is worth reading as a reference design.
+
+**Recommendation (corrected):** keep the existing `reservation_hold` model with `quote_id`, `cart_id`, `status`, and `expires_at` for the **TTL hold**, and evaluate migrating **per-window capacity** onto inventory items created per window rather than maintaining a separate capacity policy plus blackout calendar. Expiry stays on the 60-second job.
 
 **10.2 Address geocoding — NOT native.**
 Medusa has no geocoder, autocomplete, or map component. Coordinates, place IDs, and formatted addresses must come from an external provider and be persisted by us. [verified by absence; the Tax/Product/Cart modules contain no geocoding surface]
@@ -251,9 +276,17 @@ Medusa has no geocoder, autocomplete, or map component. Coordinates, place IDs, 
 No geometry type, no polygon model, no spatial queries. This is entirely the Transport Module's domain. [verified by absence]
 **Recommendation (ours):** zones are clusters of H3 cells with a unique active ownership constraint. The polygon is an **authoring input** (drawn in the admin), converted to cells, and the cells are the commercial source of truth. See Part B.
 
-**10.4 Transport reservations as a booking concept — NOT native.**
-Medusa's word "reservation" means an Inventory reservation (stock). There is no booking/reservation aggregate with a lifecycle of `pending_payment → confirmed → change_pending → ...`. [verified by the Inventory semantics; the PRD's reservation states have no Medusa counterpart]
-**Recommendation (ours):** the existing `transport_reservation` aggregate, linked to the Medusa order, remains authoritative for trip state. Financial truth stays in Medusa; trip truth stays in Transport.
+**10.4 Transport reservations as a booking concept — no native aggregate, but officially templated.**
+*(Corrected: an earlier draft read as if Medusa had nothing to offer here. It has no native aggregate, but it does ship two official patterns to copy.)*
+
+Medusa's word "reservation" means an Inventory reservation (stock), not a booking. There is no native booking aggregate with a lifecycle like `pending_payment → confirmed → change_pending → ...`. [verified]
+
+However, this is **not** unexplored territory in the framework:
+- The official **[Ticket Booking System recipe](https://docs.medusajs.com/resources/recipes/ticket-booking)** builds exactly this shape: a custom module whose models link to `Product`, `ProductVariant`, and `Order`, with capacity per window (inventory items, §10.1) and availability enforced through `validate` hooks on `addToCartWorkflow` and `completeCartWorkflow`.
+- The official **[Product Rentals tutorial](https://docs.medusajs.com/resources/how-to-tutorials/tutorials/product-rentals)** adds the rental-period validation points and order-cancellation guards.
+- See `docs/research/03-medusa-booking-and-rental-patterns.md` §1 and §6 for the full mapping.
+
+**Recommendation (ours, following the official shape):** `transport_reservation` stays custom and linked to the order, but it should be modelled to match the recipe's structure rather than invented independently. Financial truth stays in Medusa (order edits own the delta mechanics); trip truth stays in Transport. The commerce half of our reservation model is largely deletable in favour of links and native order versioning.
 
 **10.5 Fiscal invoicing — NOT native.**
 See §3. Medusa produces tax lines and receipts, not a legally valid e-CF.
@@ -399,7 +432,7 @@ The genuinely new surfaces are: **availability/capacity holds, geocoding integra
 
 ### Assumptions requiring validation
 - The exact Dominican tax treatment of ground-transfer services (rate, withholding, exemptions) — a business/accountant decision, not a Medusa or model decision.
-- That capacity/time-windowed holds cannot be cleanly expressed with the Inventory Module — assumed from module semantics; revisit only if someone proposes using inventory items as slot buckets.
+- ~~That capacity/time-windowed holds cannot be cleanly expressed with the Inventory Module~~ — **RESOLVED 2026-09-19: this assumption was FALSE.** The official Ticket Booking recipe expresses capacity per window by creating one inventory item per window (per show date and section). See §10.1. Only the TTL hold remains custom. The earlier advice "do not model capacity holds as inventory" is retracted.
 - That the current Local event module is acceptable during development only — true for durability; confirm the production infrastructure decision separately.
 
 ### Open gaps for version 2.20.1 specifically

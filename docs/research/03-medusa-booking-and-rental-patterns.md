@@ -5,6 +5,21 @@
 **Subject repository:** `ground-transportation-fare` (`@dtc/backend`, MedusaJS 2.20.1)
 **Companion documents:** `docs/research/01-transfer-booking-market-and-mozio.md`, `docs/research/02-medusa-capabilities-and-zone-tech.md`, `odd/index.md`
 
+> ## ⚠ CORRECTION — 2026-09-19
+>
+> Section 1 of this document originally claimed that Medusa ships **no** booking or rental
+> recipe. **That claim was false.** Medusa ships an official **Ticket Booking System recipe**
+> (`https://docs.medusajs.com/resources/recipes/ticket-booking`) and an official **Product
+> Rentals tutorial** (`https://docs.medusajs.com/resources/how-to-tutorials/tutorials/product-rentals`),
+> and the community plugin `RSC-Labs/medusa-booking-system` implements time-windowed holds and
+> availability rules.
+>
+> Section 1 has been rewritten with the verified sources. **Any conclusion elsewhere in this
+> document that depends on "no official booking pattern exists" must be re-read against the
+> corrected Section 1.** In particular, statements that availability/holds are "inherently ours"
+> describe what Medusa's *Inventory* module does not do — they do not mean no booking pattern
+> exists to copy.
+
 ## 0. Scope, method, and evidence rules
 
 This document answers one question in depth: **how does MedusaJS (and its official recipes/examples/tests) model booking and rental/reservation flows, so we can adapt our custom transport reservation module to native patterns instead of keeping bespoke machinery.**
@@ -23,35 +38,55 @@ This document answers one question in depth: **how does MedusaJS (and its offici
 
 ## 1. Official recipes and examples: is there a booking/rental/reservation recipe?
 
-**Short answer: there is no dedicated recipe or example for booking engines, rentals, reservations, appointments, or service bookings. [verified by absence in the Recipes index]**
+**Short answer: YES — and an earlier draft of this document was wrong to say otherwise.** Medusa ships an official **Ticket Booking System recipe** and an official **Product Rentals tutorial**, and a community plugin implements time-windowed holds and availability rules. The correct conclusion is the opposite of the original text: we should be adapting to a documented booking pattern, not inventing one.
 
-The official Recipes index lists exactly these recipes [verified — `https://docs.medusajs.com/recipes`]:
+### 1.1 Official Ticket Booking System recipe [verified]
+- Recipe: `https://docs.medusajs.com/resources/recipes/ticket-booking`
+- Full step-by-step example: `https://docs.medusajs.com/resources/recipes/ticket-booking/example`
 
-- Marketplace — `https://docs.medusajs.com/resources/recipes/marketplace`
-- Subscriptions — `https://docs.medusajs.com/resources/recipes/subscriptions`
-- Digital Products — `https://docs.medusajs.com/resources/recipes/digital-products`
-- Integrate ERP — `https://docs.medusajs.com/resources/recipes/erp`
-- B2B — `https://docs.medusajs.com/resources/recipes/b2b`
-- Bundled Products — `https://docs.medusajs.com/resources/recipes/bundled-products`
-- Commerce Automation — `https://docs.medusajs.com/resources/recipes/commerce-automation`
-- Ecommerce — `https://docs.medusajs.com/resources/recipes/ecommerce`
-- Multi-Region Store — `https://docs.medusajs.com/resources/recipes/multi-region-store`
-- Omnichannel Store — `https://docs.medusajs.com/resources/recipes/omnichannel`
-- OMS — `https://docs.medusajs.com/resources/recipes/oms`
-- Personalized Products — `https://docs.medusajs.com/resources/recipes/personalized-products`
-- POS — `https://docs.medusajs.com/resources/recipes/pos`
+This is the closest official template to our product. It covers:
 
-None of these is a rental, booking, reservation, appointment, or service-booking recipe. I did not find one elsewhere in the Recipes section either.
+- A **Ticket Booking Module** with `Venue`, `TicketProduct`, `TicketProductVariant`, and `TicketPurchase` data models.
+- Module links: `TicketProduct` → Product `Product`; `TicketProductVariant` → `ProductVariant` (gaining native pricing and inventory); `TicketPurchase` → Order `Order` (gaining native orders and payments).
+- **Capacity per time window**: inventory items are set up per show date and seating section, with available quantity equal to the seats available in that section on that date — explicitly to prevent overbooking.
+- **Disable shipping** by setting `requires_shipping` to `false` on the product variant's inventory item, then trimming shipping steps from checkout so only billing address and payment are required.
+- **`validate` hooks on `addToCartWorkflow` and `completeCartWorkflow`** to check availability at add-to-cart and at order placement. This is the officially sanctioned place to enforce availability.
+- Order confirmation email with a QR code via a subscriber on `order.placed` plus the Notification Module.
+- Admin widgets/UI routes for venues and shows, and storefront customization of the Next.js starter.
 
-**What the closest official patterns are:**
+### 1.2 Official Product Rentals tutorial [verified]
+- Tutorial: `https://docs.medusajs.com/resources/how-to-tutorials/tutorials/product-rentals`
+- Announcement post: `https://medusajs.com/blog/product-rentals`
 
-1. **Digital Products recipe** — `https://docs.medusajs.com/resources/recipes/digital-products` (full step-by-step example at `https://docs.medusajs.com/resources/recipes/digital-products/examples/standard`; reference code at `https://github.com/medusajs/examples/tree/main/digital-product`). This is the canonical template for *"a sale of something that is not a shippable physical good, with a custom module linked to the product/order."* Its building blocks transfer almost one-to-one to a booking: a custom module with a data model → `defineLink` to `ProductVariant` and to `Order` → workflow steps with compensation → admin/store API routes → a fulfillment path. [verified]
+- A **Rental Module** holding rental configurations and customer rental records.
+- Links: rental configuration → product; rental record → order.
+- An admin rental section per product, with minimum and maximum rental durations.
+- Rental-period validation in the backend at selection time, **at add-to-cart, and at order placement** — the same three-point validation shape as ticket booking.
+- `cancelOrderWorkflow.hooks.orderCanceled` to block cancelling an order whose rentals are already out, plus a subscriber that cancels rentals when the order is cancelled.
+- Explicit guidance on removing shipping requirements and managing inventory.
 
-2. **Subscriptions recipe** — `https://docs.medusajs.com/resources/recipes/subscriptions`. Closest to the *time/recurrence* aspect of a booking. Its "Option 1: custom subscription logic" is exactly our hold/expiry shape: a workflow that completes a cart and creates the subscription record, plus **scheduled jobs** that check daily for renewals and expirations. [verified] This is the strongest official precedent for "a scheduled job mutates domain records on a time boundary" — the same mechanism our `expire-transfer-holds` job already uses.
+### 1.3 Reservation Management (Inventory module) [verified]
+`https://medusajs.com/blog/announcing-reservation-management` — reservations are **virtual stock reductions** with admin visibility, advanced filters, and APIs. Merchants can create and edit reservations directly from Admin with a description and metadata. This confirms the earlier finding: **inventory reservations carry no time dimension**, so time-windowed holds remain ours. The useful part is that admin-created reservations with descriptive metadata are a supported building block for holding stock for a specific purpose.
 
-3. **"Configure Selling Products" guide** — `https://docs.medusajs.com/resources/commerce-modules/product/selling-products`. This is the only official page that names our exact use case in words: it explicitly lists "selling digital products, **services, or booking appointments**" as a selling requirement Medusa supports by disabling shipping/inventory requirements. [verified] See §4.
+### 1.4 Production precedent: Viessmann [verified]
+`https://medusajs.com/blog/viessmann` (September 2024) — Viessmann Climate Solutions launched a marketplace for mobile heating and cooling rentals on Medusa, built with Agilo, live in 8 weeks. Their custom post-order flow (draft order → supplier accept/reject email → status sync → replacement sourcing → booking and fulfillment) is marketplace machinery we do not need. The relevant proof is narrower and important: **a real rental-booking platform runs on Medusa in production**, built as a custom booking flow plus Admin UI routes/widgets, with multi-region support.
 
-**Net:** Medusa deliberately does not ship a booking/rental recipe. The documented stance is that a booking is a *custom commerce concept you model yourself* with the standard extension toolkit (custom module + module link + workflow), and that "no shipping" is a supported native product configuration. Any claim that Medusa "has a booking engine" would be false.
+### 1.5 Community plugin: RSC-Labs/medusa-booking-system [verified]
+`https://github.com/RSC-Labs/medusa-booking-system` — Apache-2.0, requires Medusa v2.7.0+, installable as `@rsc-labs/medusa-booking-system`. Non-official, but its primitives map almost directly onto our domain:
+
+- **Bookable resources** with custom types, pricing units (hourly/daily/weekly), product-variant integration, and draft/published status.
+- **Availability rules**: multiple rules per resource, priority-based evaluation, available/unavailable effects, date-range validity, active/inactive state.
+- **Booking rules (policies)**: `require_payment`, `require_confirmation`, and **`reservation_ttl_seconds`** — i.e. hold expiry, the exact concept we built by hand — with global-or-per-resource scope, priority, and validity windows, resolved by merging on priority.
+- **Pricing** per resource: currency-based, multiple configurations, product-variant integration.
+- Store API includes **`POST /store/booking-resources/[id]/hold`**, and booking carts whose item-add creates a temporary allocation that is finalized at cart completion.
+- Admin UI with Overview, Resources, Rules, and Bookings sections.
+
+**Why this matters:** this plugin already implements the two things the original draft of this document called inherently ours — time-windowed holds and availability rules. Whether or not we adopt it, it should be read before we write a competing module.
+
+### 1.6 Other official recipes, for context [verified]
+The Recipes index also lists Marketplace, Subscriptions, Digital Products, Integrate ERP, B2B, Bundled Products, Commerce Automation, Ecommerce, Multi-Region Store, Omnichannel, OMS, Personalized Products, and POS — `https://docs.medusajs.com/resources/recipes`. These remain useful secondary patterns; Subscriptions is still the best-verified precedent for a scheduled job that mutates domain records on a time boundary, and Digital Products remains a clean example of a custom-module-plus-link shape.
+
+**Net (corrected):** Medusa ships **two** official templates directly relevant to us — the Ticket Booking recipe and the Product Rentals tutorial — plus at least one community plugin that already implements holds and availability rules. Any conclusion that treats booking as "something Medusa does not model" rests on a false premise and must be discarded.
 
 ---
 
@@ -95,11 +130,15 @@ Our equivalent already exists as `apps/backend/src/links/transport-reservation-o
 - `InventoryLevel` — quantity at a location: `stocked_quantity`, `reserved_quantity`, `incoming_quantity`, keyed by `location_id` (linked to the Stock Location Module). [verified]
 - `ReservationItem` — *"represents unavailable quantity of an inventory item in a location."* Created when an order is placed; the reserved quantity is deducted from availability but still physically in stock. [verified]
 
-**Can it model time-windowed capacity for a service with no physical stock? No. [inference, strongly grounded]**
+**Can it model time-windowed capacity for a service with no physical stock? Not by itself — but the official booking recipe shows how to compose it. [verified + inference]**
 
-The Inventory Module is a **quantity-at-a-location** model. There is no time dimension on `InventoryLevel` or `ReservationItem`: no start time, no end time, no slot, no expiry field. The docs' own closest example is instructive and confirms the boundary — for event tickets it says *"you can create a reservation item when a customer selects a ticket. Then, you can remove the reservation item if the customer doesn't complete the purchase within a specific time."* [verified] The **time-limited hold is *our* removal logic**, not an inventory concept: the module reserves a *count*, and something outside the module (a scheduled job) releases it. For "two vans free at 14:30 on 2027-01-04," there is nothing in the module to express "14:30" or "2027-01-04."
+The Inventory Module is a **quantity-at-a-location** model. There is no time dimension on `InventoryLevel` or `ReservationItem`: no start time, no end time, no slot, no expiry field. The docs' own closest example is instructive — for event tickets it says *"you can create a reservation item when a customer selects a ticket. Then, you can remove the reservation item if the customer doesn't complete the purchase within a specific time."* [verified] The **time-limited hold is our removal logic**, not an inventory concept: the module reserves a *count*, and something outside the module (a scheduled job) releases it.
 
-**Conclusion:** availability for a time-windowed, no-stock service is **inherently a custom module in Medusa's model.** [inference] This matches §10.1 of the prior research. Our `reservation-hold` model (`quote_id`, `cart_id`, `status`, `expires_at`) is the correct custom shape, and the 60-second `expire-transfer-holds` job is the correct native execution mechanism (scheduled job). Do **not** attempt to model vehicle slots as `InventoryItem`/`ReservationItem`.
+**The important correction to the original draft of this section:** "no time dimension in `InventoryLevel`" does **not** mean time-windowed capacity is unsupported. The official Ticket Booking recipe (§1.1) models capacity per window by **creating one inventory item per window** — per show date and seating section — and setting the available quantity to the seats in that section for that date. The time dimension lives in *our* item identity, not in the module. That is the supported native composition, and it is materially different from "you must invent a parallel capacity system."
+
+What genuinely has no native primitive is the **temporary hold with a TTL** (reserve now, auto-release if unpaid). The community plugin covers exactly that gap with `reservation_ttl_seconds` and `POST /store/booking-resources/[id]/hold` (§1.5) — useful as a reference design, not as a Medusa primitive.
+
+**Conclusion (corrected):** model capacity windows as **one inventory item per window** (the official pattern), and keep the **TTL hold** as a thin custom record. Our `reservation-hold` model (`quote_id`, `cart_id`, `status`, `expires_at`) remains the right custom shape, and the 60-second `expire-transfer-holds` job remains the right native execution mechanism (scheduled job). Do not attempt to express "14:30 on 2027-01-04" *inside* `InventoryLevel`; express it by which inventory item you reserve.
 
 **The one native tool to add for concurrency:** `https://docs.medusajs.com/learn/fundamentals/workflows/locks` documents `acquireLockStep`/`releaseLockStep` (from `@medusajs/medusa/core-flows`) and the Locking Module service (`Modules.LOCKING`). Medusa uses these to prevent overselling in its cart workflows. For capacity holds — where two concurrent quotes must not claim the last remaining vehicle in a window — acquiring a lock keyed on `zone-origin + zone-destination + variant + window` is the native way to serialize the claim. This replaces ad-hoc race guards in `confirmTransferReservation`. [verified for mechanism; adoption is a recommendation]
 
@@ -159,7 +198,7 @@ This is the opinionated section. Mapping table first, then per-model reasoning.
 |---|---|---|---|
 | `reservation` (trip anchor: status, quote_snapshot, confirmed_at) | `Order` + `orderChange` versioning + the existing `transport-reservation-order` link | **Keep thin, delete commerce duplication** | Order owns money/status/versioning; `reservation` keeps only trip facts (zones, H3 cells, pickup time, capacity, provider ref) + quote snapshot. Delete loose `order_id`/`cart_id`/`line_item_id`/`order_snapshot` in favor of links + Order versioning. |
 | `reservation-change` (financial delta machinery) | `OrderEdit` / `OrderChange` + additional payment collections / refunds | **Delete the financial half; keep a thin requote record** | Native order edits already do confirmation, version increment, `pending_difference`, `paid_total`/`refunded_total`, one-pending-edit. Keep only the transport requote (previous/requested quote snapshot + trip delta). |
-| `reservation-hold` (temporary hold, `expires_at`) | *None* (Inventory `ReservationItem` is quantity-only, no time dimension) | **Keep custom** | Time-windowed capacity is inherently ours. Native integration = scheduled job for expiry (already present) + Locking Module for concurrency. |
+| `reservation-hold` (temporary hold, `expires_at`) | *No direct equivalent.* Capacity windows map to **one `InventoryItem` per window** (the official ticket-booking pattern, §1.1); the TTL hold itself has no native primitive | **Keep the TTL hold custom; adopt per-window inventory items for capacity** | Inventory `ReservationItem` is quantity-only with no time dimension, so the TTL hold stays ours. Native integration = scheduled job for expiry (already present) + Locking Module for concurrency. Reference design for the hold itself: the community plugin's `reservation_ttl_seconds` (§1.5). |
 | `provider-event` (webhook idempotency) | Payment webhook route + `processPaymentWorkflow` (cart locking) | **Keep thin; add a unique constraint** | Native listener + processing exist; event-level dedupe is ours. `provider_event_id` must be `.unique()`, not `.index()`. |
 | `audit-event` (append-only snapshots) | Order timeline (`orderChange` history) + Workflow Engine execution history | **Keep thin for transport-domain only** | Native timeline covers commerce events; it does not cover zone/fare corrections or reservation status corrections. Do not re-record order history. |
 | `zone` / `zone-cell` | *None* (H3 model is ours) | **Keep custom** | Established in prior research (§10.3, Part B). Not in scope to delete. |

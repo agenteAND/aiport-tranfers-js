@@ -1,166 +1,81 @@
-## ## Workflow and Deliverables
+# Project Instructions
 
-Work on one change at a time. Reuse existing OpenSpec artifacts.
+## Workflow: ODD (Organic Driven Development)
 
-Before implementation, state the selected level and justify it in
+This is the only workflow. No formal phases, no gates, no preflight, no proposals or specs.
 
-one sentence.
+1. **Authorize** — investigation, review, comparison, and audit are read-only. Implement only on explicit request.
+2. **Explore** — read the relevant code and requirements first, proportioned to the task. Do not re-read established context.
+3. **Resolve uncertainty** — ask one focused question only for a real unresolved product decision. Research only for a named unknown, from primary sources.
+4. **Classify** — Lite, Standard, or Full (below). State the level and justify it in one sentence.
+5. **Track before the first write** — create `odd/tasks/<feature>.md` and its memory mirror, and say so in one line. Small, understood work creates no document.
+6. **Implement task by task** — smallest useful topology. One work-unit commit per task; Conventional Commits; tests and docs land with the code. Check an item off only after observing its outcome.
+7. **Close** — report the verified outcome, the checks that failed or were skipped, and one concrete next step.
+
+Work on one change at a time.
+
+## Levels
+
+Select by risk and uncertainty, never by line count. State the level and justify it in one sentence before implementing.
 
 ### Lite
+A local change with clear expected behavior and an existing implementation pattern. Introduces no contract, persistence behavior, authorization rule, financial policy, external side effect, or architecture decision.
 
-Use for local changes with clear expected behavior and an existing
-
-implementation pattern. No new contracts, persistence behavior,
-
-authorization rules, or financial policies.
-
-Examples: correcting text, adjusting a table layout, or fixing an
-
-existing UI interaction.
-
-Execution: use Gentle AI's supported direct route when appropriate. Define acceptance criteria, implement, and verify. Do not start a formal SDD change solely for a small, understood task. If the task belongs to an active SDD change, preserve its lifecycle.
+*Execution:* implement and verify. No task document.
 
 ### Standard
+Bounded behavior inside the existing architecture and accepted contracts, with no unresolved critical decision.
 
-Use when adding bounded behavior within the existing architecture and
-
-accepted contracts, with no unresolved critical decisions.
-
-Examples: a vehicle-class screen connected to existing endpoints, or
-
-a fare form implementing approved pricing rules.
-
-
-
-Execution: use existing contracts and perform only the exploration
-
-needed for this feature. If using SDD, follow the installed workflow's
-
-required phases and prerequisites. Keep required artifacts concise;
-
-do not omit them based on this classification.
-
-Default flow: `focused explore -> short spec -> apply -> verify`.
+*Execution:* focused exploration, implement, verify.
 
 ### Full
+Defines or changes architecture, domain or public contracts, pricing or financial semantics, authorization, integrations with external effects, migrations, data integrity, concurrency, or destructive operations.
 
-Use when defining or changing architecture, financial contracts,
+*Execution:* resolve the specific uncertainty with the smallest investigation that answers it, then implement and verify. When business policy is missing, ask for the decision — a model must never invent it.
 
-authorization, integrations with external effects, migrations, or data
+## Artifacts
 
-integrity and concurrency guarantees.
+Three files carry all the durable context. Nothing else is required.
 
-Examples: defining refund behavior, changing fare calculation semantics,
+| File | Purpose |
+|---|---|
+| `odd/tasks/<feature>.md` | One per feature: objective, checklist with stable task IDs, progress, evidence, next step. |
+| `odd/decisions.md` | Append-only decision log. One entry per decision: date, decision, why, alternatives rejected. |
+| `odd/index.md` | Map of the repository: what exists, where, and what it does. Its purpose is that a task never requires reading the whole codebase. Keep it current when structure changes. |
 
-guaranteeing payment idempotency, or redesigning zone persistence.
+If a decision is worth remembering it goes in `odd/decisions.md`. Do not create a document to restate information that already exists.
 
-Logical flow:
+## Verification
 
-Execution: use SDD to resolve the identified uncertainty through the
+- Run the strongest relevant check and report what you actually observed. Never claim a check passed unless you ran it and saw it pass.
+- Never declare work done because code was written.
+- Unit tests: `pnpm test`
+- Integration tests (modules): `cd apps/backend && DB_USERNAME=solis pnpm run test:integration:modules`
+- Type check and build: `cd apps/backend && npx medusa build`
+- `medusa lint` is unavailable here — `eslint` is not installed. Do not claim it as a gate.
+- Root `pnpm test` runs unit tests only; it does not exercise integration paths.
 
-installed workflow's supported phases. Apply the model escalation
+## Commits and delivery
 
-policy where required. Complete functional verification and the
+- Conventional Commits. Never add AI attribution or `Co-Authored-By`.
+- One work-unit commit per task, on a feature branch. Branch first if you are on the default branch.
+- Commit, push, pull request, and merge gates belong to the human. Ordinary repository policy decides delivery.
 
-applicable review before declaring delivery ready.
+## Usable deliverables
 
+For operational features, first define the action the user performs in Medusa Admin and how its outcome is verified. Implement the end-to-end path: UI → endpoint → persistence → visible result. Reuse working components; do not expand scope.
 
+A feature is complete when it can be opened and used in Medusa Admin or the storefront, uses real application data, persists writes, reflects persisted data in read-only views, handles loading/empty/error states, and its checks pass.
 
-Limit research and design to the unresolved decisions.
+Where end-to-end behavior matters, prefer Playwright to exercise it rather than asserting it by hand. For purely visual or documentation changes, verify their own acceptance criteria without unrelated backend work.
 
-Review does not replace executable verification.
+If runtime verification was unavailable, say so explicitly rather than implying it passed.
 
-Apply the project's model escalation policy when its triggers are met.
+## Specialists
 
-### Selection and Gentle AI Compatibility
+Consult `sol-specialist` for a bounded reasoning blocker on money, authorization, data-integrity, or concurrency correctness, or after two distinct failed fixes for the same defect. Consult `astra-architect` for cross-domain architecture or incompatible contracts requiring redesign. Provide one concrete question with the relevant files and evidence. Specialists advise; their answer is not proof that anything passed.
 
-- Select depth by risk and uncertainty, not line count.
-
-- Mentioning prices or payments does not automatically require Full.
-
-  Implementing an accepted contract may be Standard.
-
-- Lite, Standard, and Full are project planning labels, not assumed
-
-  native Gentle AI modes.
-
-- Use the installed Gentle AI version's supported direct or SDD route.
-
-- For an active SDD change, preserve native prerequisites, artifacts,
-
-  and valid transitions. These logical flows do not authorize skipping
-
-  required phases or fabricating completion state.
-
-- If new uncertainty requires a deeper process, record why and resolve
-
-  it before continuing the affected work.
-
-- Reuse current evidence and accepted decisions. Repeat investigation
-
-  only when relevant changes or new evidence invalidate them.
-
-- A logical stage does not automatically require another document,
-
-  agent, or session. Respect native requirements where applicable.
-
-### Context and Continuity
-
-- Search and locate relevant code before reading entire files.
-
-- Load only project rules, relevant contracts, the current change,
-
-  and files needed for the task.
-
-- Preserve decisions, verification results, blockers, and one concrete
-
-  next action in the existing change record.
-
-- For direct work without an OpenSpec change, use a concise handoff
-
-  when continuation is needed; do not invent an SDD lifecycle.
-
-- Store conclusions and references, not conversation transcripts or
-
-  complete tool logs.
-
-### Usable MVP Deliverables
-
-For operational MVP features, first define the action the user will
-
-perform in Medusa Admin and how its outcome will be verified.
-
-Implement the necessary end-to-end path:
-
-UI → endpoint → persistence → visible result.
-
-Reuse working components. Do not expand scope to additional features.
-
-A feature is complete when:
-
-- It can be opened and used in Medusa Admin.
-
-- It uses real application data.
-
-- Writes persist after reloading, where applicable.
-
-- Read-only views reflect persisted data.
-
-- Relevant loading, empty, and error states are handled.
-
-- Required checks pass.
-
-- The Admin route and concrete manual test steps are provided.
-
-For purely visual or documentation changes, verify their own acceptance
-
-criteria without requiring unrelated backend changes.
-
-If runtime verification was unavailable, report:
-
-"Implemented; runtime verification pending."
-
-### Required completion report
+## Required completion report
 
 End every development session with:
 
@@ -170,166 +85,3 @@ End every development session with:
 - `Escalations`: unresolved decisions or `None`.
 
 This is the only completion-report format. Do not output a second overlapping checklist.
-
-Do not declare work complete solely because code was written.
-
-## Model Escalation
-
-Follow `.opencode/escalation-policy.md` for escalation triggers,
-worker blocker reporting, specialist consultations, and resumption.
-
-OpenCode loads this policy through the project's `instructions` setting.
-If it is not present in your context, read it before handling escalation.
-
-Apply only the rules for your assigned role:
-- Workers report blockers to the parent.
-- The parent orchestrator invokes specialists and resumes the work.
-- Consultants never delegate or modify files.
-
-Preserve Gentle AI's native workflow, authorization, and output contracts.
-
-### Escalate to sol-specialist
-
-Consult Sol:
-
-- Before implementing new contracts involving money, authorization,
-
-  migrations, data integrity, or concurrency guarantees.
-
-- Before closing executable changes that affect those guarantees.
-
-- After two distinct, unsuccessful fixes for the same defect. Include
-
-  the hypotheses, attempted fixes, and observed errors.
-
-An administrative screen that only consumes an existing contract does
-
-not require escalation merely because it displays prices or payments.
-
-Do not escalate missing credentials, unavailable services, or environment
-
-failures as reasoning problems. Report the actual blocker.
-
-### Escalate to astra-architect
-
-Consult Astra:
-
-- Before adopting new architecture spanning multiple domains.
-
-- When incompatible contracts require architectural redesign.
-
-- When Sol identifies a specific unresolved architectural decision.
-
-Do not request general audits or repeat an existing architectural
-
-decision without new evidence.
-
-### Delegation Boundaries
-
-Only the parent orchestrator may invoke specialists.
-
-SDD agents must return escalation requests to the parent with:
-
-- The escalation trigger.
-
-- A concrete question.
-
-- Supporting evidence.
-
-- Relevant artifact and file paths.
-
-- Work completed and the exact continuation point.
-
-SDD agents must not invoke specialists from inside another delegation.
-
-Consultants must never invoke, spawn, delegate to, or coordinate other
-
-agents through any tool, command, MCP service, or external mechanism.
-
-If another specialist is needed, they must return that need to the parent.
-
-If Sol recommends Astra, the parent invokes Astra separately.
-
-Sol must never invoke Astra directly, or vice versa.
-
-### Consultation Input
-
-Provide only:
-
-- One concrete question and the expected outcome.
-
-- Relevant spec, design, code, and test references.
-
-- A concise summary of relevant decisions.
-
-- Failed attempts and observed errors, when applicable.
-
-Do not forward the full conversation, repository, historical reports,
-
-or unrelated tool output.
-
-The requested response should contain:
-
-- Decision or diagnosis.
-
-- Evidence and relevant file references.
-
-- Required changes.
-
-- Required verification.
-
-- Unresolved questions, if any.
-
-### Resume the Existing Workflow
-
-After a consultation:
-
-- Record the decision in the appropriate existing OpenSpec artifact.
-
-- Resume the pending phase through its original SDD agent.
-
-- Update affected specs, designs, and tasks if a contract changes.
-
-- Apply corrections and verify the affected behavior.
-
-- Request another consultation only when findings remain unresolved
-
-  or new evidence materially changes the decision.
-
-Consultants provide advice and review findings. Their response is not
-
-proof that tests passed or that a native workflow gate was satisfied.
-
-Keep one implementation writer active at a time.
-
-### Completion and Availability
-
-Do not declare critical work complete while a required consultation
-
-or blocking finding remains unresolved.
-
-If a required specialist is unavailable:
-
-- Record the blocked portion and reason.
-
-- Continue only independent work.
-
-- Do not silently substitute another model.
-
-- Do not claim that the required review occurred.
-
-When business policy is missing, ask the user for the specific decision.
-
-No model may invent that policy.
-
-### Workflow Compatibility
-
-Lite, Standard, and Full are project planning labels, not assumed native
-
-Gentle AI modes.
-
-Use Gentle AI's supported direct route for suitable small changes.
-
-For active SDD changes, follow the installed version's valid transitions.
-
-Do not bypass required phases or fabricate lifecycle state.

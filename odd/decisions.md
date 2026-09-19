@@ -6,6 +6,24 @@ Newest first.
 
 ---
 
+## 2026-09-19 — Use PostGIS together with H3 (SUPERSEDES the "H3 alone, no PostGIS" entry below)
+
+**Decision:** Adopt **both**. H3 cells remain the runtime pricing authority. PostGIS holds the drawn polygons and provides authoring, geometry validation, and metric-distance capability.
+
+**Why:** The product owner chose the combination after reviewing the tradeoffs. It buys capability H3 cannot provide at all: exact geometric containment, `ST_IsValid`/`ST_MakeValid` validation of admin-drawn polygons, overlap detection between zones, real metric distance/buffer/nearest-neighbour, exact areas, and ingestion of standard geometry formats (GeoJSON, shapefiles, official boundaries). H3 and PostGIS are complementary by design, not competing — the ecosystem treats them that way (the `h3-pg` bindings now live under the `postgis` organisation, and ship inside the PostGIS Windows bundle).
+
+**Alternatives rejected:** H3 alone — sufficient for point-in-zone lookup but cannot do metric distance, exact boundaries, or geometry validation, and would block distance-based pricing or ETA-by-distance later.
+
+**Consequences and the rules that keep this safe:**
+1. **Cells stay authoritative for pricing.** PostGIS must never answer a pricing or quote question at runtime, or the same address can produce two different answers. PostGIS is authoring + validation + distance only.
+2. **The hot path is unchanged.** Point-in-zone stays the H3 equality lookup on an indexed column; PostGIS adds no runtime cost when used only for authoring.
+3. **Extension dependency everywhere** — local, CI, staging, production. Managed PostgreSQL must permit `CREATE EXTENSION postgis`.
+4. **Medusa/MikroORM friction:** migration generation does not model `geometry` columns, so those migrations are hand-written raw SQL and maintained manually.
+5. **Sync discipline:** every polygon edit must regenerate cells in an explicit publish step, otherwise the runtime silently uses stale cells. Zone versioning matters more now, not less.
+6. **Store polygons from day one.** They are needed as the authoring record regardless, and their presence is what makes any future re-derivation a backfill rather than a re-draw.
+
+---
+
 ## 2026-09-19 — Fiscal invoicing is out of scope for now
 
 **Decision:** Dominican e-CF fiscal invoicing is excluded from the current scope and deferred. It will be revisited later.

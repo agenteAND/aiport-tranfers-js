@@ -338,7 +338,7 @@ Practical reading for a Punta Cana / Bávaro / Cap Cana service area:
 
 ### 12. Is PostGIS necessary? A direct answer
 
-**Short answer: No.** H3 cells stored in ordinary indexed PostgreSQL columns are sufficient and preferable for this product. PostGIS would add operational and migration surface without changing any MVP capability.
+**Answer as of 2026-09-19: use BOTH.** H3 alone would be sufficient for point-in-zone lookup, and the tradeoff analysis below is why that was originally recommended in this document — but the decision recorded in §13 and `odd/decisions.md` is to adopt H3 **and** PostGIS together, with cells authoritative for pricing and PostGIS confined to authoring, validation, and metric distance.
 
 **Important: this is NOT the general claim that H3 replaces PostGIS. It does not, and it is not meant to.** [verified — H3 and PostGIS documentation]
 
@@ -382,24 +382,46 @@ Sources: [ST_Contains](https://postgis.net/docs/ST_Contains.html), [PostGIS spat
 
 ---
 
-### 13. Recommendation
+### 13. Recommendation — DECIDED 2026-09-19: use H3 **and** PostGIS
 
-**Do not add PostGIS for the MVP.** Store H3 cell indices in ordinary indexed PostgreSQL columns and treat the drawn polygon as an authoring input only:
+> **The earlier version of this section recommended excluding PostGIS for the MVP. The product owner reviewed the tradeoffs and chose the combination. What follows is the decision and the rules that make it safe.** The H3-only reasoning is retained earlier in this document because it remains the accurate *cost* side of the ledger — it is what the decision was made against, not a position that was overturned by new evidence.
 
-- Runtime lookup: `latLngToCell` (in `h3-js`) → indexed equality lookup on `transport_zone_cell.cell` → zone.
-- Authoring: draw polygon in the admin → `polygonToCells` at the configured resolution → preview → persist cells; allow manual add/remove of boundary cells.
-- Integrity: unique constraint for "one active cell → one active zone", plus zone versioning and quote snapshots (all already represented in the Transport Module's direction).
+**Division of labour**
 
-**Conditions that would change the answer** (each is a concrete trigger, not a hypothetical):
+| Layer | Owns | Must never do |
+|---|---|---|
+| **H3 cells** (ordinary indexed columns) | The runtime "which zone is this coordinate in?" lookup, pricing context, quote snapshots, boundary-cell add/remove | Metric distance, exact containment, geometry validation |
+| **PostGIS** | Authoring the drawn polygon, validating it (`ST_IsValid`, `ST_MakeValid`), detecting overlap between zones, metric distance/buffer/nearest-neighbour, exact areas, importing official boundaries (GeoJSON, shapefiles) | Answering a pricing or quote question at runtime |
 
-1. **A legal/regulatory requirement** that the commercial boundary exactly match an official polygon (e.g. a municipal or airport authority boundary), rather than a commercial grid.
-2. **Sub-cell precision requirements** that cannot be met at the finest resolution we are willing to pay for — i.e. two addresses that must price differently keep collapsing into one cell at resolution 10, and neither boundary-cell editing nor a finer resolution fixes it.
-3. **A new product requirement for metric distance, buffers, or nearest-neighbor** (e.g. ETA-by-distance, "within 5 km of the airport"), which H3 does not provide.
-4. **Spatial joins across external datasets** (e.g. matching third-party geospatial data to zones) where importing polygons is materially cheaper than re-deriving cells.
+**The non-negotiable rule:** **cells stay authoritative for pricing.** PostGIS must never answer a pricing question at runtime. If both layers can answer "what does this address cost?", the same address can produce two different answers — that is the failure mode this rule exists to prevent.
 
-If any of these becomes true, add PostGIS as a **derived, authoring-side layer only**: store polygons in PostGIS to generate and validate cells, but keep the runtime zone lookup in H3. That preserves the fast, simple hot path and avoids making geometry part of the checkout path.
+**Why this is safe for performance.** The hot path is unchanged: `latLngToCell` (in `h3-js`) plus one indexed equality lookup on `transport_zone_cell.cell`. PostGIS is touched during authoring and validation, never during checkout, so the combination adds no runtime cost to quoting.
 
-**Confidence:** high for the MVP recommendation; medium for the trigger conditions (they are inferred from the product's stated non-goals and the H3/PostGIS capability sets).
+**What this costs, and must be planned for**
+
+1. **Extension dependency in every environment** — local, CI, staging, production. Managed PostgreSQL must permit `CREATE EXTENSION postgis`; some providers restrict it or gate it behind a tier.
+2. **MikroORM friction — the main ongoing tax in this repository.** Medusa's migration generation does not model `geometry` columns, so those migrations are hand-written raw SQL and maintained manually.
+3. **Two sources of truth** — polygon and cells. They must not be allowed to drift.
+4. **Sync discipline** — every polygon edit must regenerate cells behind an explicit publish step. Zone versioning becomes more important under this decision, not less.
+5. **SRID and geometry-validity discipline** — `geometry` is Cartesian, so distance and area are meaningless for lat/lon without a projection or the `geography` type; invalid geometry makes predicates fail silently. ([PostGIS data management — geography](https://postgis.net/docs/using_postgis_dbmanagement.html), [ST_Contains](https://postgis.net/docs/ST_Contains.html))
+
+**Not included in this decision:** the H3 SQL bindings (`h3-pg`, now maintained under the `postgis` organisation and shipped inside the PostGIS Windows bundle) would let cells be computed inside the database. `h3-js` already computes them in the application, and adopting `h3-pg` would move logic into SQL and add a second H3 version to keep in sync. Treat it as an optional later step, not part of this decision.
+
+**Implementation rules**
+
+- **Runtime lookup:** `latLngToCell` (`h3-js`) → indexed equality lookup on `transport_zone_cell.cell` → zone.
+- **Authoring:** draw polygon → validate in PostGIS → `polygonToCells` at the configured resolution → preview → persist cells; allow manual add/remove of boundary cells.
+- **Integrity:** unique constraint for "one active cell → one active zone", plus zone versioning and quote snapshots.
+- **Store the polygon from day one**, before any PostGIS-specific feature is used. It is the authoring record, and its presence is what makes any later re-derivation a backfill instead of a re-draw.
+
+**What drove the decision** (these were the original "would change the answer" triggers; they became the reasons to adopt):
+
+1. A legal or regulatory requirement that a commercial boundary exactly match an official polygon.
+2. Sub-cell precision: two addresses that must price differently collapsing into one cell at resolution 10.
+3. Metric distance, buffers, or nearest-neighbour — for example ETA by distance or "within 5 km of the airport".
+4. Spatial joins across external geospatial datasets where importing polygons beats re-deriving cells.
+
+**Confidence:** high on the mechanics and the cost list; the choice itself is a product decision recorded in `odd/decisions.md`.
 
 ---
 
